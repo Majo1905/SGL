@@ -44,6 +44,11 @@ class Proyecto extends Model
         return $this->hasMany(IntegranteProyecto::class);
     }
 
+    public function documentos()
+    {
+        return $this->hasMany(ProjectDocument::class)->latest();
+    }
+
     /*
      * Porcentaje de avance del expediente:
      *  - radicado / en revisión / rechazado: 30%

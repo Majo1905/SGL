@@ -18,7 +18,18 @@ class ProfileTest extends TestCase
             ->actingAs($user)
             ->get('/profile');
 
-        $response->assertOk();
+        $response->assertOk()
+            ->assertSee('Estudiante')
+            ->assertDontSee('Administrador / Evaluador de Grados');
+    }
+
+    public function test_profile_displays_the_actual_role_for_each_account(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->get('/profile')
+            ->assertOk()
+            ->assertSee('Administrador');
     }
 
     public function test_profile_information_can_be_updated(): void

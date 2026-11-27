@@ -18,8 +18,7 @@ class AdminSeeder extends Seeder
         $password = env('ADMIN_PASSWORD');
 
         if (! $email || ! $password) {
-            $this->command?->error('Define ADMIN_EMAIL y ADMIN_PASSWORD en el .env');
-            return;
+            throw new \RuntimeException('Define ADMIN_EMAIL y ADMIN_PASSWORD antes de crear el administrador inicial.');
         }
 
         User::updateOrCreate(

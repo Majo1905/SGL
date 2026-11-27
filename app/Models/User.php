@@ -16,6 +16,7 @@ class User extends Authenticatable
 {
     protected $attributes = [
         'activo' => true,
+        'rol' => 'ESTUDIANTE',
     ];
 
     /** @use HasFactory<UserFactory> */

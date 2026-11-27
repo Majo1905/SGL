@@ -128,6 +128,55 @@
                 @endif
             </div>
 
+            @php
+                $usuarioActual = auth()->user();
+                $esAutorActual = $usuarioActual->esEstudiante() && $proyecto->esAutor($usuarioActual);
+                $esTutorActual = $usuarioActual->rol === 'TUTOR'
+                    && $proyecto->integrantes->contains(fn ($integrante) => $integrante->user_id === $usuarioActual->id && $integrante->rol_en_proyecto === 'DIRECTOR_TUTOR');
+            @endphp
+            @if ($usuarioActual->esAdmin() || $esAutorActual || $esTutorActual)
+                <section class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                    <div class="mb-5">
+                        <h3 class="text-xl font-bold text-slate-900">Documentos del proyecto</h3>
+                        <p class="mt-1 text-sm text-slate-500">Carga aquí tu anteproyecto o sus versiones. Tu tutor asignado y el administrador podrán consultarlo. Formatos PDF, DOC o DOCX; máximo 10 MB.</p>
+                    </div>
+
+                    @if (session('mensaje'))
+                        <div role="status" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('mensaje') }}</div>
+                    @endif
+                    @if ($errors->has('documento'))
+                        <div role="alert" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first('documento') }}</div>
+                    @endif
+
+                    @if ($esAutorActual)
+                        <form method="POST" action="{{ route('proyectos.documentos.store', $proyecto) }}" enctype="multipart/form-data" class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
+                            @csrf
+                            <div class="flex-1">
+                                <label for="documento" class="block text-sm font-semibold text-slate-700">Selecciona tu documento o nueva versión</label>
+                                <input type="file" id="documento" name="documento" accept=".pdf,.doc,.docx" required class="mt-1 block w-full rounded-xl border border-slate-300 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:font-semibold file:text-[#006837]">
+                            </div>
+                            <button type="submit" class="rounded-xl bg-[#006837] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#00522b]">Cargar documento</button>
+                        </form>
+                    @endif
+
+                    <ul class="divide-y divide-slate-100">
+                        @forelse ($proyecto->documentos as $documento)
+                            <li class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p class="font-semibold text-slate-800">{{ $documento->original_name }}</p>
+                                    <p class="text-xs text-slate-500">
+                                        Cargado por {{ $documento->usuario->name }} · {{ $documento->created_at->format('d/m/Y H:i') }} · {{ number_format($documento->size / 1048576, 2) }} MB
+                                    </p>
+                                </div>
+                                <a href="{{ route('documentos.descargar', $documento) }}" class="font-semibold text-[#006837] hover:underline">Descargar</a>
+                            </li>
+                        @empty
+                            <li class="py-3 text-sm text-slate-500">Todavía no hay documentos cargados.</li>
+                        @endforelse
+                    </ul>
+                </section>
+            @endif
+
             <!-- 3. Línea de Tiempo Cronológica (Timeline) -->
             <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-8">
                 <div class="mb-8">

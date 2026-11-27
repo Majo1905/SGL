@@ -4,7 +4,7 @@
             <div>
                 <span class="text-xs font-bold text-[#006837] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">Gestión de Cuenta</span>
                 <h2 class="font-extrabold text-2xl text-slate-900 tracking-tight mt-1">
-                    Perfil del Evaluador / Usuario
+                    Mi perfil
                 </h2>
             </div>
             <a href="{{ route('dashboard') }}" class="inline-flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-sm">
@@ -26,7 +26,7 @@
                         <h3 class="text-xl font-extrabold text-slate-900">{{ Auth::user()->name }}</h3>
                         <p class="text-sm text-slate-500">{{ Auth::user()->email }}</p>
                         <span class="inline-block mt-2 px-2.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                            Comité Académico - Unicórdoba
+                            {{ Auth::user()->nombre_rol }}
                         </span>
                     </div>
                 </div>
@@ -34,7 +34,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
                         <p class="text-slate-400 font-bold text-xs uppercase">Rol del Sistema</p>
-                        <p class="font-semibold text-slate-700 mt-1">Administrador / Evaluador de Grados</p>
+                        <p class="font-semibold text-slate-700 mt-1">{{ Auth::user()->nombre_rol }}</p>
                     </div>
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
                         <p class="text-slate-400 font-bold text-xs uppercase">Institución</p>

@@ -57,9 +57,12 @@ class AccesoPorRolTest extends TestCase
             'password' => 'password',
             'password_confirmation' => 'password',
             'rol' => 'ADMIN', // intento de escalar privilegios: se ignora
-        ]);
+        ])->assertRedirect(route('dashboard', absolute: false));
 
-        $this->assertSame('ESTUDIANTE', User::where('email', 'nuevo@unicordoba.edu.co')->firstOrFail()->rol);
+        $usuarioRegistrado = User::where('email', 'nuevo@unicordoba.edu.co')->firstOrFail();
+        $this->assertSame('ESTUDIANTE', $usuarioRegistrado->rol);
+        $this->assertAuthenticatedAs($usuarioRegistrado);
+        $this->get(route('usuarios.index'))->assertForbidden();
     }
 
     public function test_estudiante_radica_proyecto_y_queda_como_autor(): void

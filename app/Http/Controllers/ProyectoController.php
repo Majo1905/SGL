@@ -40,7 +40,9 @@ class ProyectoController extends Controller implements HasMiddleware
             ->orderBy('fecha_limite')
             ->get();
 
-        return view('dashboard', compact('proyectos', 'alertas'));
+        $periodoActivo = PeriodoAcademico::where('estado', 'ACTIVO')->orderByDesc('fecha_inicio')->first();
+
+        return view('dashboard', compact('proyectos', 'alertas', 'periodoActivo'));
     }
 
     public function create()
@@ -86,6 +88,7 @@ class ProyectoController extends Controller implements HasMiddleware
             'correcciones' => fn ($query) => $query->with('usuarioAutor')->orderBy('fecha_limite'),
             'integrantes.user',
             'periodoAcademico',
+            'documentos.usuario',
         ]);
 
         // solo se ofrecen los usuarios que todavía no hacen parte del proyecto

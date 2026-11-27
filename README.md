@@ -5,6 +5,7 @@ Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se pued
 - **Proyectos:** radicar, ver, editar y eliminar (el código `PRJ-AAAA-NNN` se genera solo).
 - **Períodos académicos:** el administrador configura los períodos y define cuáles están activos; las radicaciones quedan vinculadas al período activo.
 - **Observaciones:** registrar y editar por su autor, responder con evidencia como estudiante y aprobar o devolver como tutor/jurado.
+- **Documentos:** el estudiante autor carga entregas PDF/DOC/DOCX de hasta 10 MB; el autor, el tutor asignado y el administrador pueden descargarlas. Se almacenan de forma privada.
 - **Integrantes:** agregar y quitar autores, directores y jurados.
 
 ### Roles y requisitos funcionales (RF1 a RF10)
@@ -22,6 +23,8 @@ Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se pued
 - Las observaciones tienen tres estados: Pendiente, Resuelto y Aprobado. Los estudiantes deben registrar una respuesta para resolverlas; un evaluador asignado puede aprobarlas o devolverlas.
 
 En una instalación existente ejecuta `php artisan migrate` para aplicar el esquema sin tocar los datos y luego crea el período en **Períodos** con una cuenta administradora. `php artisan migrate --seed` es solo para una base local vacía: carga los datos de demostración y un período inicial. Usuarios de demostración, todos con clave `12345678`: `admin@`, `tutor@`, `jurado@`, `estudiante1@` y `estudiante2@unicordoba.edu.co`.
+
+El disco de documentos se selecciona con `PROJECT_DOCUMENTS_DISK` (por defecto `local`). Para desplegar en Render, sigue [DEPLOY.md](./DEPLOY.md): el plan gratuito sirve para demostración, pero la base gratuita vence a los 30 días y los documentos en el filesystem local pueden perderse al reiniciar o desplegar. Para datos reales, configura almacenamiento persistente en un plan compatible; la integración S3 requiere agregar su adaptador antes de configurarla.
 
 ### Funciones interactivas
 

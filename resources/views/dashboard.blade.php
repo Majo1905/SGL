@@ -16,9 +16,11 @@
                 <a href="{{ route('profile.edit') }}" class="text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl shadow-sm border border-slate-200 transition-all">
                     Mi Perfil
                 </a>
-                <div class="bg-[#006837] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm border border-emerald-800">
-                    Periodo Académico: <span class="text-emerald-200 font-bold">2026-I</span>
-                </div>
+                @if ($periodoActivo)
+                    <div class="bg-[#006837] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm border border-emerald-800">
+                        Período activo: <span class="text-emerald-200 font-bold">{{ $periodoActivo->nombre }}</span>
+                    </div>
+                @endif
             </div>
         </div>
     </x-slot>
@@ -26,6 +28,18 @@
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6"
             x-data="listado(@js($proyectos->map(fn ($p) => ['id' => $p->id, 'estado' => $p->estado, 'texto' => mb_strtolower($p->codigo_radicado . ' ' . $p->titulo . ' ' . $p->asunto_linea_investigacion)])))">
+
+            @if ($proyectos->isEmpty() && auth()->user()->esEstudiante())
+                <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+                    <h3 class="font-bold text-emerald-900">Empieza radicando tu proyecto</h3>
+                    <p class="mt-1 text-sm text-emerald-800">Después de radicarlo, abre su ficha y encontrarás la sección «Documentos del proyecto» para cargar el PDF, DOC o DOCX. El tutor asignado y el administrador podrán descargarlo desde allí.</p>
+                    @if ($periodoActivo)
+                        <a href="{{ route('proyectos.create') }}" class="mt-4 inline-flex rounded-xl bg-[#006837] px-4 py-2 text-sm font-semibold text-white hover:bg-[#00522b]">Radicar proyecto</a>
+                    @else
+                        <p class="mt-3 text-sm font-semibold text-amber-800">No hay un período académico activo. Solicita al administrador que lo habilite.</p>
+                    @endif
+                </div>
+            @endif
 
             <!-- Alertas de plazos -->
             @if ($alertas->isNotEmpty())
@@ -50,10 +64,14 @@
             @endif
 
             <!-- 1. Tarjetas de Métricas Dinámicas (KPIs) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-[#006837]">
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Radicados</p>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total proyectos</p>
                     <p class="text-3xl font-black text-slate-800 mt-1">{{ $proyectos->count() }}</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-indigo-500">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Radicados</p>
+                    <p class="text-3xl font-black text-indigo-600 mt-1">{{ $proyectos->where('estado', 'RADICADO')->count() }}</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-amber-500">
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Con Observaciones</p>
@@ -136,12 +154,12 @@
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="px-3 py-1 text-xs font-extrabold rounded-full 
                                             {{ $proyecto->estado == 'APROBADO' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : ($proyecto->estado == 'CON_OBSERVACIONES' ? 'bg-amber-100 text-amber-700 border border-amber-200' : ($proyecto->estado == 'RECHAZADO' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-sky-100 text-sky-700 border border-sky-200')) }}">
-                                            {{ str_replace('_', ' ', $proyecto->estado) }}
+                                            {{ App\Models\Proyecto::ESTADOS[$proyecto->estado] }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 w-40">
                                         @php
-                                            $colorBarra = ['APROBADO' => 'bg-emerald-500', 'RECHAZADO' => 'bg-red-500', 'CON_OBSERVACIONES' => 'bg-amber-500', 'EN_REVISION' => 'bg-sky-500'][$proyecto->estado];
+                                            $colorBarra = ['APROBADO' => 'bg-emerald-500', 'RECHAZADO' => 'bg-red-500', 'CON_OBSERVACIONES' => 'bg-amber-500', 'EN_REVISION' => 'bg-sky-500', 'RADICADO' => 'bg-indigo-500'][$proyecto->estado];
                                         @endphp
                                         <div class="flex items-center gap-2">
                                             <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -216,16 +234,17 @@
             // 1. Datos dinámicos desde Blade/MySQL para Estados
             const aprobados = {{ $proyectos->where('estado', 'APROBADO')->count() }};
             const observaciones = {{ $proyectos->where('estado', 'CON_OBSERVACIONES')->count() }};
+            const radicados = {{ $proyectos->where('estado', 'RADICADO')->count() }};
             const revision = {{ $proyectos->where('estado', 'EN_REVISION')->count() }};
             const rechazados = {{ $proyectos->where('estado', 'RECHAZADO')->count() }};
 
             new Chart(document.getElementById('chartEstados'), {
                 type: 'doughnut',
                 data: {
-                    labels: ['Aprobados', 'Con Observaciones', 'En Revisión', 'Rechazados'],
+                    labels: ['Radicados', 'Aprobados', 'Con Observaciones', 'En Revisión', 'Rechazados'],
                     datasets: [{
-                        data: [aprobados, observaciones, revision, rechazados],
-                        backgroundColor: ['#059669', '#f59e0b', '#0284c7', '#dc2626'],
+                        data: [radicados, aprobados, observaciones, revision, rechazados],
+                        backgroundColor: ['#6366f1', '#059669', '#f59e0b', '#0284c7', '#dc2626'],
                         borderWidth: 2,
                         borderColor: '#ffffff'
                     }]

@@ -1,26 +1,26 @@
-# Deploy
+# Despliegue en Render
 
-## Opción A: Docker (Render, Railway, Fly.io, cualquier VPS con Docker)
-1. Sube el proyecto a GitHub.
-2. Crea un servicio web desde el Dockerfile.
-3. Configura las variables de `.env.production.example` en el panel
-   (APP_KEY: genérala con `php artisan key:generate --show`).
-4. Conecta una base de datos MySQL/PostgreSQL (en esas plataformas SQLite se pierde al redeployar).
-5. Al arrancar, el contenedor migra la base y crea el admin con ADMIN_EMAIL / ADMIN_PASSWORD.
+## Publicar con Blueprint
 
-Prueba local:
-    docker build -t proyectos .
-    docker run -p 8080:8080 --env-file .env proyectos
+1. Sube este proyecto a un repositorio GitHub y conéctalo a Render.
+2. En Render, crea un **Blueprint** desde ese repositorio. Render leerá `render.yaml` y propondrá un servicio web Docker y una base PostgreSQL.
+3. Antes de crear los servicios, configura los valores secretos solicitados: `APP_KEY`, `ADMIN_EMAIL` y `ADMIN_PASSWORD`. Genera `APP_KEY` localmente con `php artisan key:generate --show`; usa una contraseña robusta y distinta de las cuentas de demostración.
+4. Acepta la creación de los servicios. El contenedor migra la base de datos y crea/actualiza el administrador inicial al arrancar. Revisa los logs; el despliegue no se considera listo si la migración o la creación del administrador falla.
+5. Abre la URL asignada por Render y prueba el inicio de sesión con el correo y la contraseña de administrador configurados.
 
-## Opción B: VPS o hosting con SSH
-    cp .env.production.example .env   # edítalo
-    ./deploy.sh
-El document root debe apuntar a `public/`.
+No uses las credenciales de demostración en producción. Nunca subas `.env`, claves ni contraseñas a Git.
 
-## Hosting compartido (cPanel)
-Sube el proyecto fuera de `public_html`, copia el contenido de `public/` a `public_html`
-y ajusta las rutas en `index.php`. Ejecuta `deploy.sh` por SSH o corre migrate/build en local.
+## Persistencia y costos
 
-## Notas
-- NO uses `migrate:fresh --seed` en producción (borra todo y crea usuarios con clave 12345678).
-- Cambia ADMIN_PASSWORD antes de publicar.
+El Blueprint usa los planes gratuitos para facilitar una demostración, pero tienen límites importantes: el servicio puede suspenderse por inactividad y la base de datos gratuita de Render vence a los 30 días. Además, el sistema de archivos local del servicio web es efímero; los documentos cargados no se conservan de forma garantizada después de un reinicio o despliegue. Esta configuración no es adecuada para datos reales.
+
+Para conservar datos, cambia a una base de datos con retención adecuada y configura almacenamiento persistente para documentos antes de usarlo con información real. Un disco persistente de Render requiere un plan de servicio compatible y debe montarse en `/var/www/html/storage/app/private`. La integración S3 no está incluida en esta entrega; no configures `PROJECT_DOCUMENTS_DISK=s3` sin agregar primero el adaptador S3 de Flysystem.
+
+## Comprobación local con Docker
+
+```bash
+docker build -t sgtg .
+docker run --rm -p 8080:8080 --env-file .env sgtg
+```
+
+`.env` debe contener como mínimo `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false`, `DB_CONNECTION`/la configuración de base de datos, `ADMIN_EMAIL` y `ADMIN_PASSWORD`. El contenedor ejecuta `php artisan migrate --force` en cada inicio, nunca `migrate:fresh`.
