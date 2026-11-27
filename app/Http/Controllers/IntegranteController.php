@@ -30,7 +30,7 @@ class IntegranteController extends Controller implements HasMiddleware
         $datos = $request->validateWithBag('integrante', [
             'user_id' => [
                 'required',
-                'exists:users,id',
+                Rule::exists('users', 'id')->where('activo', true),
                 // un usuario no puede estar dos veces en el mismo proyecto
                 Rule::unique('integrante_proyectos')->where('proyecto_id', $proyecto->id),
             ],
@@ -47,7 +47,7 @@ class IntegranteController extends Controller implements HasMiddleware
         $usuario = User::findOrFail($datos['user_id']);
         if ((self::ROL_COMPATIBLE[$usuario->rol] ?? null) !== $datos['rol_en_proyecto']) {
             throw ValidationException::withMessages([
-                'rol_en_proyecto' => 'El rol del proyecto no es compatible con el rol del usuario (' . $usuario->nombre_rol . ').',
+                'rol_en_proyecto' => 'El rol del proyecto no es compatible con el rol del usuario ('.$usuario->nombre_rol.').',
             ])->errorBag('integrante');
         }
 

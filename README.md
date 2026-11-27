@@ -3,7 +3,8 @@
 Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se puede:
 
 - **Proyectos:** radicar, ver, editar y eliminar (el código `PRJ-AAAA-NNN` se genera solo).
-- **Observaciones:** registrar, editar, marcar como resueltas y eliminar desde el detalle del proyecto.
+- **Períodos académicos:** el administrador configura los períodos y define cuáles están activos; las radicaciones quedan vinculadas al período activo.
+- **Observaciones:** registrar y editar por su autor, responder con evidencia como estudiante y aprobar o devolver como tutor/jurado.
 - **Integrantes:** agregar y quitar autores, directores y jurados.
 
 ### Roles y requisitos funcionales (RF1 a RF10)
@@ -14,18 +15,19 @@ Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se pued
 | Tutor / Jurado | Ver sus proyectos, registrar y editar observaciones, aprobar, informe de pendientes, búsquedas |
 | Estudiante | Radicar y editar su proyecto (mientras no esté cerrado), resolver observaciones, búsquedas |
 
-- **RF1:** ingreso, registro público (siempre como estudiante), recuperación de contraseña, perfil y roles. El administrador registra usuarios en `/usuarios`.
+- **RF1:** ingreso, registro público (siempre como estudiante), recuperación de contraseña, perfil, documento de identidad único y cuentas activables/desactivables. El administrador registra usuarios en `/usuarios`.
+- **RF2–RF5:** ciclo de vida del proyecto, asignación de integrantes compatibles con su rol, visor central y trazabilidad de correcciones.
 - **RF6:** `/informes/rango` (solo administrador). **RF7:** `/informes/pendientes`. **RF8:** `/informes/usuario` (solo administrador).
 - **RF9 y RF10:** `/buscar` (código exacto y búsqueda parcial por título o línea).
-- Las observaciones tienen tres estados: Pendiente, Resuelto y Aprobado.
+- Las observaciones tienen tres estados: Pendiente, Resuelto y Aprobado. Los estudiantes deben registrar una respuesta para resolverlas; un evaluador asignado puede aprobarlas o devolverlas.
 
-Después de actualizar el código ejecuta `php artisan migrate:fresh --seed` (cambian la tabla de usuarios y el estado de las observaciones). Usuarios de prueba, todos con clave `12345678`: `admin@`, `tutor@`, `jurado@`, `estudiante1@` y `estudiante2@unicordoba.edu.co`.
+En una instalación existente ejecuta `php artisan migrate` para aplicar el esquema sin tocar los datos y luego crea el período en **Períodos** con una cuenta administradora. `php artisan migrate --seed` es solo para una base local vacía: carga los datos de demostración y un período inicial. Usuarios de demostración, todos con clave `12345678`: `admin@`, `tutor@`, `jurado@`, `estudiante1@` y `estudiante2@unicordoba.edu.co`.
 
 ### Funciones interactivas
 
 - **Barra de avance con porcentaje**, en el detalle y en cada fila del dashboard. El cálculo está en `Proyecto::getPorcentajeAvanceAttribute()`: en revisión o rechazado = 30 %; con observaciones = de 30 % a 90 % según las resueltas; aprobado = 100 %.
-- **Resolver observaciones con un clic** (sin recargar): la barra y el contador suben en vivo. Cuando todas están resueltas aparece el botón para aprobar el proyecto.
-- **Estado automático:** al registrar una observación, un proyecto "En revisión" pasa a "Con observaciones".
+- **Seguimiento de observaciones**: el estudiante registra evidencia de cumplimiento; tutor/jurado aprueba o devuelve el compromiso a pendiente. El filtro por estado no altera los indicadores del proyecto.
+- **Estado automático:** al registrar una observación, un proyecto "Radicado" o "En revisión" pasa a "Con observaciones".
 - **Semáforo de plazos** en cada observación (verde, amarillo si faltan 3 días o menos, rojo si venció) y panel de alertas en el dashboard.
 - **Búsqueda y filtro por estado en vivo** en el listado de proyectos.
 

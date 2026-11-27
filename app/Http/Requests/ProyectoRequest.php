@@ -2,20 +2,31 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PeriodoAcademico;
 use App\Models\Proyecto;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class ProyectoRequest extends FormRequest
 {
-    public function rules()
+    public function rules(): array
     {
+        $cantidadPeriodosActivos = PeriodoAcademico::where('estado', 'ACTIVO')->count();
+        $reglaPeriodo = Rule::exists('periodos_academicos', 'id');
+        if ($this->isMethod('post')) {
+            $reglaPeriodo->where('estado', 'ACTIVO');
+        }
+
         return [
             'titulo' => ['required', 'string', 'max:255'],
             'asunto_linea_investigacion' => ['required', 'string', 'max:255'],
             'resumen' => ['required', 'string', 'min:20', 'max:3000'],
-            'fecha_radicacion' => ['required', 'date'],
             'estado' => ['nullable', Rule::in(array_keys(Proyecto::ESTADOS))],
+            'periodo_academico_id' => [
+                Rule::requiredIf($this->isMethod('post') && $cantidadPeriodosActivos !== 1),
+                'nullable',
+                $reglaPeriodo,
+            ],
         ];
     }
 
@@ -35,7 +46,6 @@ class ProyectoRequest extends FormRequest
         return [
             'titulo' => 'título',
             'asunto_linea_investigacion' => 'línea de investigación',
-            'fecha_radicacion' => 'fecha de radicación',
         ];
     }
 }

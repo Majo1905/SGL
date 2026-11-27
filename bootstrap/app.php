@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Middleware\CuentaActivaMiddleware;
+use App\Http\Middleware\RolMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
@@ -14,7 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->alias([
-            'rol' => \App\Http\Middleware\RolMiddleware::class,
+            'rol' => RolMiddleware::class,
+            'cuenta.activa' => CuentaActivaMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

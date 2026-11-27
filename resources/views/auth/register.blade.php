@@ -9,6 +9,12 @@
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
+        <div class="mt-4">
+            <x-input-label for="documento_identidad" value="Documento de identidad" />
+            <x-text-input id="documento_identidad" class="block mt-1 w-full" type="text" name="documento_identidad" :value="old('documento_identidad')" required autocomplete="off" />
+            <x-input-error :messages="$errors->get('documento_identidad')" class="mt-2" />
+        </div>
+
         <!-- Email Address -->
         <div class="mt-4">
             <x-input-label for="email" :value="__('Email')" />

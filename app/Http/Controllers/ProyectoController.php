@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProyectoRequest;
 use App\Models\Correccion;
+use App\Models\PeriodoAcademico;
 use App\Models\Proyecto;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -45,8 +46,9 @@ class ProyectoController extends Controller implements HasMiddleware
     public function create()
     {
         return view('proyectos.create', [
-            'proyecto' => new Proyecto(),
+            'proyecto' => new Proyecto,
             'lineas' => $this->lineasExistentes(),
+            'periodos' => PeriodoAcademico::where('estado', 'ACTIVO')->orderByDesc('fecha_inicio')->get(),
         ]);
     }
 
@@ -55,10 +57,10 @@ class ProyectoController extends Controller implements HasMiddleware
         $usuario = $request->user();
 
         $datos = $request->validated();
-        // solo el administrador puede fijar el estado; al radicar siempre inicia en revisión
-        if (! $usuario->esAdmin() || empty($datos['estado'])) {
-            unset($datos['estado']);
-        }
+        unset($datos['estado']);
+        $datos['estado'] = 'RADICADO';
+        $datos['fecha_radicacion'] = today()->toDateString();
+        $datos['periodo_academico_id'] ??= PeriodoAcademico::where('estado', 'ACTIVO')->value('id');
         $datos['codigo_radicado'] = Proyecto::siguienteCodigo();
         $datos['usuario_creador_id'] = $usuario->id;
 
@@ -80,11 +82,16 @@ class ProyectoController extends Controller implements HasMiddleware
     {
         $this->autorizarProyecto($proyecto);
 
-        $proyecto->load(['correcciones', 'integrantes.user']);
+        $proyecto->load([
+            'correcciones' => fn ($query) => $query->with('usuarioAutor')->orderBy('fecha_limite'),
+            'integrantes.user',
+            'periodoAcademico',
+        ]);
 
         // solo se ofrecen los usuarios que todavía no hacen parte del proyecto
         $usuarios = User::whereNotIn('id', $proyecto->integrantes->pluck('user_id'))
             ->where('rol', '!=', 'ADMIN')
+            ->where('activo', true)
             ->orderBy('name')
             ->get();
 
@@ -98,6 +105,7 @@ class ProyectoController extends Controller implements HasMiddleware
         return view('proyectos.edit', [
             'proyecto' => $proyecto,
             'lineas' => $this->lineasExistentes(),
+            'periodos' => collect(),
         ]);
     }
 
@@ -127,7 +135,7 @@ class ProyectoController extends Controller implements HasMiddleware
         ]);
 
         $proyecto->update($datos);
-        session()->flash('mensaje', 'El estado del proyecto cambió a ' . Proyecto::ESTADOS[$proyecto->estado] . '.');
+        session()->flash('mensaje', 'El estado del proyecto cambió a '.Proyecto::ESTADOS[$proyecto->estado].'.');
 
         return response()->json(['estado' => $proyecto->estado]);
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -32,6 +33,7 @@ class UsuarioController extends Controller implements HasMiddleware
     {
         $datos = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'documento_identidad' => ['required', 'string', 'max:20', 'unique:users,documento_identidad'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'rol' => ['required', Rule::in(array_keys(User::ROLES))],
             'password' => ['required', 'confirmed', Password::defaults()],
@@ -42,6 +44,7 @@ class UsuarioController extends Controller implements HasMiddleware
 
         $usuario = User::create([
             'name' => $datos['name'],
+            'documento_identidad' => $datos['documento_identidad'],
             'email' => $datos['email'],
             'rol' => $datos['rol'],
             'password' => Hash::make($datos['password']),
@@ -49,5 +52,15 @@ class UsuarioController extends Controller implements HasMiddleware
 
         return redirect()->route('usuarios.index')
             ->with('mensaje', "Usuario {$usuario->name} registrado como {$usuario->nombre_rol}.");
+    }
+
+    public function cambiarEstado(Request $request, User $usuario): RedirectResponse
+    {
+        abort_if($request->user()->is($usuario), 422, 'No puedes desactivar tu propia cuenta.');
+
+        $usuario->update(['activo' => ! $usuario->activo]);
+
+        return redirect()->route('usuarios.index')
+            ->with('mensaje', 'La cuenta de '.$usuario->name.' quedó '.($usuario->activo ? 'activa.' : 'inactiva.'));
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Correccion;
 use App\Models\IntegranteProyecto;
+use App\Models\PeriodoAcademico;
 use App\Models\Proyecto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,6 +13,18 @@ use Tests\TestCase;
 class AccesoPorRolTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        PeriodoAcademico::create([
+            'nombre' => '2026-2',
+            'fecha_inicio' => '2026-07-01',
+            'fecha_fin' => '2026-12-31',
+            'estado' => 'ACTIVO',
+        ]);
+    }
 
     private function crearProyecto(User $creador, array $extra = []): Proyecto
     {
@@ -39,6 +52,7 @@ class AccesoPorRolTest extends TestCase
     {
         $this->post('/register', [
             'name' => 'Nuevo Usuario',
+            'documento_identidad' => '10000001',
             'email' => 'nuevo@unicordoba.edu.co',
             'password' => 'password',
             'password_confirmation' => 'password',
@@ -61,7 +75,8 @@ class AccesoPorRolTest extends TestCase
         ]);
 
         $proyecto = Proyecto::firstOrFail();
-        $this->assertSame('EN_REVISION', $proyecto->estado);
+        $this->assertSame('RADICADO', $proyecto->estado);
+        $this->assertNotNull($proyecto->periodo_academico_id);
         $this->assertTrue($proyecto->esAutor($estudiante));
         $this->assertSame('AUTOR_ESTUDIANTE', IntegranteProyecto::firstOrFail()->rol_en_proyecto);
     }
@@ -69,6 +84,7 @@ class AccesoPorRolTest extends TestCase
     public function test_tutor_no_puede_radicar_proyectos(): void
     {
         $tutor = User::factory()->tutor()->create();
+        $this->assertTrue($tutor->fresh()->activo);
 
         $this->actingAs($tutor)->get('/proyectos/create')->assertForbidden();
     }
@@ -102,6 +118,49 @@ class AccesoPorRolTest extends TestCase
         ])->assertRedirect(route('proyectos.show', $proyecto));
 
         $this->assertSame(1, $proyecto->correcciones()->count());
+    }
+
+    public function test_tutor_aprueba_la_respuesta_del_estudiante_y_registra_la_fecha(): void
+    {
+        $estudiante = User::factory()->create();
+        $tutor = User::factory()->tutor()->create();
+        $proyecto = $this->crearProyecto($estudiante);
+        $this->asignar($proyecto, $tutor, 'DIRECTOR_TUTOR');
+        $correccion = Correccion::create([
+            'proyecto_id' => $proyecto->id,
+            'descripcion_observacion' => 'Ampliar la descripción metodológica.',
+            'fecha_limite' => today()->addWeek(),
+            'usuario_autor_id' => $tutor->id,
+        ]);
+
+        $this->actingAs($estudiante)->patchJson(route('correcciones.alternar', $correccion), [
+            'estado' => 'RESUELTO',
+            'respuesta_estudiante' => 'Se agregó el detalle solicitado.',
+        ])->assertOk()->assertJson(['estado' => 'RESUELTO']);
+
+        $this->actingAs($tutor)->patchJson(route('correcciones.alternar', $correccion), [
+            'estado' => 'APROBADO',
+        ])->assertOk()->assertJson(['estado' => 'APROBADO']);
+
+        $this->assertNotNull($correccion->fresh()->fecha_resolucion);
+    }
+
+    public function test_tutor_no_puede_editar_observacion_creada_por_otro_tutor(): void
+    {
+        $estudiante = User::factory()->create();
+        $autor = User::factory()->tutor()->create();
+        $otroTutor = User::factory()->tutor()->create();
+        $proyecto = $this->crearProyecto($estudiante);
+        $this->asignar($proyecto, $autor, 'DIRECTOR_TUTOR');
+        $this->asignar($proyecto, $otroTutor, 'DIRECTOR_TUTOR');
+        $correccion = Correccion::create([
+            'proyecto_id' => $proyecto->id,
+            'descripcion_observacion' => 'Ampliar la descripción metodológica.',
+            'fecha_limite' => today()->addWeek(),
+            'usuario_autor_id' => $autor->id,
+        ]);
+
+        $this->actingAs($otroTutor)->get(route('correcciones.edit', $correccion))->assertForbidden();
     }
 
     public function test_tutor_no_asignado_no_puede_observar_el_proyecto(): void
@@ -145,12 +204,32 @@ class AccesoPorRolTest extends TestCase
             'estado' => 'APROBADO',
         ]);
 
-        $this->actingAs($estudiante)->patchJson(route('correcciones.alternar', $pendiente))
+        $this->actingAs($estudiante)->patchJson(route('correcciones.alternar', $pendiente), [
+            'estado' => 'RESUELTO',
+            'respuesta_estudiante' => 'Se agregó el marco teórico solicitado.',
+        ])
             ->assertOk()
             ->assertJson(['estado' => 'RESUELTO', 'resueltas' => 2, 'total' => 2, 'porcentaje' => 90]);
+        $this->assertSame('Se agregó el marco teórico solicitado.', $pendiente->fresh()->respuesta_estudiante);
 
         $this->actingAs($estudiante)->patchJson(route('correcciones.alternar', $aprobada))
-            ->assertStatus(409);
+            ->assertStatus(422);
+    }
+
+    public function test_estudiante_no_puede_marcar_compromiso_resuelto_sin_evidencia(): void
+    {
+        $estudiante = User::factory()->create();
+        $proyecto = $this->crearProyecto($estudiante);
+        $observacion = Correccion::create([
+            'proyecto_id' => $proyecto->id,
+            'descripcion_observacion' => 'Observación pendiente',
+            'fecha_limite' => today()->addWeek(),
+        ]);
+
+        $this->actingAs($estudiante)
+            ->patchJson(route('correcciones.alternar', $observacion), ['estado' => 'RESUELTO'])
+            ->assertUnprocessable();
+        $this->assertSame('PENDIENTE', $observacion->fresh()->estado);
     }
 
     public function test_solo_el_administrador_elimina_proyectos(): void
@@ -222,6 +301,20 @@ class AccesoPorRolTest extends TestCase
         $this->assertSame(0, IntegranteProyecto::count());
     }
 
+    public function test_no_se_puede_asignar_un_usuario_inactivo_a_un_proyecto(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $proyecto = $this->crearProyecto($admin);
+        $tutorInactivo = User::factory()->tutor()->create(['activo' => false]);
+
+        $this->actingAs($admin)->post(route('integrantes.store', $proyecto), [
+            'user_id' => $tutorInactivo->id,
+            'rol_en_proyecto' => 'DIRECTOR_TUTOR',
+        ])->assertSessionHasErrorsIn('integrante', 'user_id');
+
+        $this->assertSame(0, IntegranteProyecto::count());
+    }
+
     public function test_observacion_aprobada_cuenta_en_el_avance(): void
     {
         $admin = User::factory()->admin()->create();
@@ -247,6 +340,7 @@ class AccesoPorRolTest extends TestCase
 
         $this->actingAs($admin)->post(route('usuarios.store'), [
             'name' => 'Dra. Ana Torres',
+            'documento_identidad' => '10000002',
             'email' => 'ana@unicordoba.edu.co',
             'rol' => 'JURADO',
             'password' => 'clave-segura-123',
@@ -263,6 +357,7 @@ class AccesoPorRolTest extends TestCase
 
         $this->actingAs($admin)->post(route('usuarios.store'), [
             'name' => 'Otra persona',
+            'documento_identidad' => '10000003',
             'email' => $existente->email,
             'rol' => 'ESTUDIANTE',
             'password' => 'clave-segura-123',

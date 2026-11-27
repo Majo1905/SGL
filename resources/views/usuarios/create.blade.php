@@ -28,6 +28,10 @@
                         <input type="text" name="name" id="name" class="{{ $campo }}" value="{{ old('name') }}" required>
                     </div>
                     <div>
+                        <label for="documento_identidad" class="block text-sm font-semibold text-slate-700">Documento de identidad</label>
+                        <input type="text" name="documento_identidad" id="documento_identidad" maxlength="20" class="{{ $campo }}" value="{{ old('documento_identidad') }}" required>
+                    </div>
+                    <div>
                         <label for="email" class="block text-sm font-semibold text-slate-700">Correo electrónico</label>
                         <input type="email" name="email" id="email" class="{{ $campo }}" value="{{ old('email') }}" required>
                     </div>

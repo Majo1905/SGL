@@ -31,20 +31,10 @@
                         <textarea name="descripcion_observacion" id="descripcion_observacion" rows="4" class="{{ $campo }}" required>{{ old('descripcion_observacion', $correccion->descripcion_observacion) }}</textarea>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                            <label for="fecha_limite" class="block text-sm font-semibold text-slate-700">Fecha límite</label>
-                            <input type="date" name="fecha_limite" id="fecha_limite" class="{{ $campo }}"
-                                value="{{ old('fecha_limite', $correccion->fecha_limite->format('Y-m-d')) }}" required>
-                        </div>
-                        <div>
-                            <label for="estado" class="block text-sm font-semibold text-slate-700">Estado</label>
-                            <select name="estado" id="estado" class="{{ $campo }}">
-                                @foreach (App\Models\Correccion::ESTADOS as $valor => $etiqueta)
-                                    <option value="{{ $valor }}" @selected(old('estado', $correccion->estado) == $valor)>{{ $etiqueta }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <div>
+                        <label for="fecha_limite" class="block text-sm font-semibold text-slate-700">Fecha límite</label>
+                        <input type="date" name="fecha_limite" id="fecha_limite" min="{{ now()->format('Y-m-d') }}" class="{{ $campo }}"
+                            value="{{ old('fecha_limite', $correccion->fecha_limite->format('Y-m-d')) }}" required>
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-3">

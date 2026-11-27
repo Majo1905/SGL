@@ -50,6 +50,14 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        if (! $this->user()->activo) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'La cuenta está deshabilitada. Contacta al administrador del sistema.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

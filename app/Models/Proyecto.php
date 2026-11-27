@@ -4,12 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Proyecto extends Model
 {
     use HasFactory;
 
     const ESTADOS = [
+        'RADICADO' => 'Radicado',
         'EN_REVISION' => 'En revisión',
         'CON_OBSERVACIONES' => 'Con observaciones',
         'APROBADO' => 'Aprobado',
@@ -25,6 +27,11 @@ class Proyecto extends Model
     public function usuarioCreador()
     {
         return $this->belongsTo(User::class, 'usuario_creador_id');
+    }
+
+    public function periodoAcademico(): BelongsTo
+    {
+        return $this->belongsTo(PeriodoAcademico::class, 'periodo_academico_id');
     }
 
     public function correcciones()
@@ -54,6 +61,7 @@ class Proyecto extends Model
 
             if ($total > 0) {
                 $resueltas = $this->correcciones->whereIn('estado', ['RESUELTO', 'APROBADO'])->count();
+
                 return (int) round(30 + 60 * $resueltas / $total);
             }
         }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Correccion;
 use App\Models\IntegranteProyecto;
+use App\Models\PeriodoAcademico;
 use App\Models\Proyecto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +19,12 @@ class ProyectoCrudTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        PeriodoAcademico::create([
+            'nombre' => '2026-2',
+            'fecha_inicio' => '2026-07-01',
+            'fecha_fin' => '2026-12-31',
+            'estado' => 'ACTIVO',
+        ]);
         // el CRUD completo es del administrador; los permisos por rol se prueban en AccesoPorRolTest
         $this->usuario = User::factory()->admin()->create();
     }
@@ -70,7 +77,8 @@ class ProyectoCrudTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^PRJ-\d{4}-001$/', $proyecto->codigo_radicado);
         $this->assertSame($this->usuario->id, $proyecto->usuario_creador_id);
-        $this->assertSame('EN_REVISION', $proyecto->fresh()->estado);
+        $this->assertSame('RADICADO', $proyecto->fresh()->estado);
+        $this->assertSame(today()->toDateString(), $proyecto->fresh()->fecha_radicacion->toDateString());
     }
 
     public function test_el_consecutivo_no_se_repite_despues_de_eliminar(): void
@@ -87,7 +95,7 @@ class ProyectoCrudTest extends TestCase
     {
         $this->actingAs($this->usuario)
             ->post('/proyectos', ['titulo' => '', 'resumen' => 'corto'])
-            ->assertSessionHasErrors(['titulo', 'asunto_linea_investigacion', 'resumen', 'fecha_radicacion']);
+            ->assertSessionHasErrors(['titulo', 'asunto_linea_investigacion', 'resumen']);
 
         $this->assertSame(0, Proyecto::count());
     }
@@ -120,7 +128,7 @@ class ProyectoCrudTest extends TestCase
         $this->actingAs($this->usuario)->get(route('proyectos.edit', $proyecto))
             ->assertOk()
             ->assertSee('Sistema de prueba')
-            ->assertSee('2026-02-10');
+            ->assertSee('10/02/2026');
     }
 
     public function test_actualizar_proyecto(): void
@@ -226,13 +234,16 @@ class ProyectoCrudTest extends TestCase
             ->put(route('correcciones.update', $correccion), [
                 'descripcion_observacion' => 'Texto corregido de la observación',
                 'fecha_limite' => '2026-03-15',
-                'estado' => 'RESUELTO',
             ])
             ->assertRedirect(route('proyectos.show', $proyecto));
 
         $correccion->refresh();
-        $this->assertSame('RESUELTO', $correccion->estado);
+        $this->assertSame('PENDIENTE', $correccion->estado);
         $this->assertSame('Texto corregido de la observación', $correccion->descripcion_observacion);
+        $this->actingAs($this->usuario)->patchJson(route('correcciones.alternar', $correccion), [
+            'estado' => 'RESUELTO',
+            'respuesta_estudiante' => 'Se corrigió el apartado solicitado.',
+        ])->assertOk();
     }
 
     public function test_eliminar_observacion(): void
@@ -331,13 +342,18 @@ class ProyectoCrudTest extends TestCase
         ]);
 
         $this->actingAs($this->usuario)
-            ->patchJson(route('correcciones.alternar', $primera))
+            ->patchJson(route('correcciones.alternar', $primera), [
+                'estado' => 'RESUELTO',
+                'respuesta_estudiante' => 'Se completó la primera observación.',
+            ])
             ->assertOk()
             ->assertJson(['estado' => 'RESUELTO', 'porcentaje' => 60, 'resueltas' => 1, 'total' => 2]);
 
         // un segundo clic la vuelve a dejar pendiente
         $this->actingAs($this->usuario)
-            ->patchJson(route('correcciones.alternar', $primera))
+            ->patchJson(route('correcciones.alternar', $primera), [
+                'estado' => 'PENDIENTE',
+            ])
             ->assertOk()
             ->assertJson(['estado' => 'PENDIENTE', 'porcentaje' => 30, 'resueltas' => 0]);
     }

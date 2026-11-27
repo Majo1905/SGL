@@ -2,10 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Proyecto;
 use App\Models\Correccion;
 use App\Models\IntegranteProyecto;
+use App\Models\PeriodoAcademico;
+use App\Models\Proyecto;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -13,6 +14,18 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $semestre = now()->month <= 6 ? 1 : 2;
+        $fechaInicio = $semestre === 1 ? now()->startOfYear() : now()->month(7)->startOfMonth();
+        $fechaFin = $semestre === 1 ? now()->month(6)->endOfMonth() : now()->endOfYear();
+        $periodo = PeriodoAcademico::firstOrCreate(
+            ['nombre' => now()->year.'-'.$semestre],
+            [
+                'fecha_inicio' => $fechaInicio->toDateString(),
+                'fecha_fin' => $fechaFin->toDateString(),
+                'estado' => 'ACTIVO',
+            ]
+        );
+
         // 1. Usuarios, uno por cada rol del sistema (clave de todos: 12345678)
         $admin = User::create([
             'name' => 'Carlos Pérez (Coordinador)',
@@ -57,6 +70,7 @@ class DatabaseSeeder extends Seeder
             'resumen' => 'Desarrollo de un modelo convolucional basado en Python y Keras para la detección temprana de plagas.',
             'estado' => 'CON_OBSERVACIONES',
             'fecha_radicacion' => '2026-02-10',
+            'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante1->id,
         ]);
 
@@ -67,6 +81,7 @@ class DatabaseSeeder extends Seeder
             'resumen' => 'Aplicación full-stack en Laravel con componentes interactivos y control estricto de roles académicos.',
             'estado' => 'APROBADO',
             'fecha_radicacion' => '2026-02-15',
+            'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante2->id,
         ]);
 
@@ -77,6 +92,7 @@ class DatabaseSeeder extends Seeder
             'resumen' => 'Simulación y análisis de protocolos de comunicación eficientes bajo escenarios de alta densidad de nodos.',
             'estado' => 'EN_REVISION',
             'fecha_radicacion' => '2026-02-20',
+            'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante1->id,
         ]);
 

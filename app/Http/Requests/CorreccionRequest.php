@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Models\Correccion;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class CorreccionRequest extends FormRequest
 {
@@ -14,8 +13,6 @@ class CorreccionRequest extends FormRequest
     public function rules()
     {
         $reglaFecha = ['required', 'date'];
-
-        // al crear no tiene sentido una fecha límite que ya pasó
         if ($this->isMethod('post')) {
             $reglaFecha[] = 'after_or_equal:today';
         }
@@ -23,7 +20,6 @@ class CorreccionRequest extends FormRequest
         return [
             'descripcion_observacion' => ['required', 'string', 'min:10', 'max:1000'],
             'fecha_limite' => $reglaFecha,
-            'estado' => ['nullable', Rule::in(array_keys(Correccion::ESTADOS))],
         ];
     }
 

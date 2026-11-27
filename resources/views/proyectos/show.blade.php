@@ -38,12 +38,13 @@
                 total: {{ $proyecto->correcciones->count() }},
                 resueltas: {{ $proyecto->correcciones->whereIn('estado', ['RESUELTO', 'APROBADO'])->count() }},
                 correcciones: @js($proyecto->correcciones->pluck('estado', 'id')),
+                respuestas: @js($proyecto->correcciones->pluck('respuesta_estudiante', 'id')),
                 urlEstado: '{{ route('proyectos.estado', $proyecto) }}',
             })">
 
             <!-- 0. Porcentaje de avance (se actualiza en vivo) -->
             @php
-                $colorBarra = ['APROBADO' => 'bg-emerald-500', 'RECHAZADO' => 'bg-red-500', 'CON_OBSERVACIONES' => 'bg-amber-500', 'EN_REVISION' => 'bg-sky-500'][$proyecto->estado];
+                $colorBarra = ['APROBADO' => 'bg-emerald-500', 'RECHAZADO' => 'bg-red-500', 'CON_OBSERVACIONES' => 'bg-amber-500', 'EN_REVISION' => 'bg-sky-500', 'RADICADO' => 'bg-sky-500'][$proyecto->estado];
             @endphp
             <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-6">
                 <div class="flex items-end justify-between mb-3">
@@ -75,7 +76,12 @@
             <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-6">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Flujo de Aprobación Institucional</h3>
                 @php
-                    $paso = $proyecto->estado == 'APROBADO' ? 4 : (in_array($proyecto->estado, ['CON_OBSERVACIONES', 'RECHAZADO']) ? 3 : 2);
+                    $paso = match ($proyecto->estado) {
+                        'RADICADO' => 1,
+                        'APROBADO' => 4,
+                        'CON_OBSERVACIONES', 'RECHAZADO' => 3,
+                        default => 2,
+                    };
                     $colorPaso3 = $proyecto->estado == 'RECHAZADO' ? 'red' : ($proyecto->estado == 'CON_OBSERVACIONES' ? 'amber' : 'green');
                 @endphp
                 <div class="grid grid-cols-4 gap-2 text-center text-xs font-bold">
@@ -117,6 +123,9 @@
                     <p class="text-slate-400 font-bold text-xs uppercase mb-1">Resumen Ejecutivo</p>
                     <p class="text-slate-700 leading-relaxed">{{ $proyecto->resumen }}</p>
                 </div>
+                @if ($proyecto->periodoAcademico)
+                    <p class="mt-4 text-sm text-slate-600">Período académico: <strong>{{ $proyecto->periodoAcademico->nombre }}</strong></p>
+                @endif
             </div>
 
             <!-- 3. Línea de Tiempo Cronológica (Timeline) -->
@@ -144,8 +153,17 @@
                     </div>
 
                     <!-- Hitos Dinámicos: Correcciones y Observaciones -->
+                    <div class="mb-4 pl-8">
+                        <label for="filtro-correcciones" class="mr-2 text-xs font-bold uppercase text-slate-500">Filtrar observaciones</label>
+                        <select id="filtro-correcciones" x-model="estadoFiltro" class="rounded-lg border-slate-300 py-1 text-xs">
+                            <option value="TODOS">Todas</option>
+                            @foreach (App\Models\Correccion::ESTADOS as $valor => $etiqueta)
+                                <option value="{{ $valor }}">{{ $etiqueta }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     @foreach($proyecto->correcciones as $correccion)
-                        <div class="relative pl-8">
+                        <div class="relative pl-8" x-show="estadoFiltro === 'TODOS' || correcciones[{{ $correccion->id }}] === estadoFiltro">
                             <span class="absolute -left-[11px] top-1 h-5 w-5 rounded-full ring-4 flex items-center justify-center transition-colors"
                                 :class="resuelta({{ $correccion->id }}) ? 'bg-emerald-500 ring-emerald-50' : 'bg-amber-500 ring-amber-50'">
                                 <span class="h-2 w-2 rounded-full bg-white"></span>
@@ -154,8 +172,16 @@
                                 :class="resuelta({{ $correccion->id }}) ? 'border-emerald-200' : 'border-amber-200'">
                                 <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                                     <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-md"
-                                        :class="resuelta({{ $correccion->id }}) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
-                                        x-text="resuelta({{ $correccion->id }}) ? 'COMPROMISO SUBSANADO' : 'OBSERVACIÓN PENDIENTE'"></span>
+                                        :class="{
+                                            'bg-amber-100 text-amber-800': correcciones[{{ $correccion->id }}] === 'PENDIENTE',
+                                            'bg-sky-100 text-sky-800': correcciones[{{ $correccion->id }}] === 'RESUELTO',
+                                            'bg-emerald-100 text-emerald-800': correcciones[{{ $correccion->id }}] === 'APROBADO'
+                                        }"
+                                        x-text="{
+                                            PENDIENTE: 'PENDIENTE',
+                                            RESUELTO: 'RESPUESTA EN REVISIÓN',
+                                            APROBADO: 'CORRECCIÓN APROBADA'
+                                        }[correcciones[{{ $correccion->id }}]]"></span>
                                     <div class="flex items-center gap-2">
                                         @php
                                             $colorPlazo = ['rojo' => 'bg-red-100 text-red-700', 'amarillo' => 'bg-yellow-100 text-yellow-800', 'verde' => 'bg-emerald-100 text-emerald-700'][$correccion->semaforo];
@@ -167,21 +193,41 @@
                                     </div>
                                 </div>
                                 <p class="text-sm text-slate-800 leading-relaxed">{{ $correccion->descripcion_observacion }}</p>
+                                <p class="mt-2 text-xs text-slate-500">
+                                    Registrada por: <strong>{{ $correccion->usuarioAutor?->name ?? 'Usuario anterior' }}</strong>
+                                </p>
+                                <div x-show="respuestas[{{ $correccion->id }}]" x-cloak class="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
+                                    <p class="text-xs font-bold uppercase text-sky-800">Respuesta / evidencia del estudiante</p>
+                                    <p class="mt-1 whitespace-pre-line text-sm text-sky-900" x-text="respuestas[{{ $correccion->id }}]"></p>
+                                </div>
                                 <div class="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100 text-xs font-semibold">
-                                    <button type="button" @click="alternar({{ $correccion->id }}, '{{ route('correcciones.alternar', $correccion) }}')"
-                                        :disabled="cargando === {{ $correccion->id }}"
-                                        class="px-3 py-1 rounded-lg border transition-all disabled:opacity-50"
-                                        :class="resuelta({{ $correccion->id }}) ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
-                                        x-text="resuelta({{ $correccion->id }}) ? 'Reabrir' : 'Marcar como resuelta'"></button>
-                                    @if (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']))
-<a href="{{ route('correcciones.edit', $correccion) }}" class="text-[#006837] hover:underline">Editar</a>
+                                    @if (auth()->user()->esEstudiante() && $proyecto->esAutor(auth()->user()) && $correccion->estado === 'PENDIENTE')
+                                        <button type="button" @click="cambiarEstado({{ $correccion->id }}, '{{ route('correcciones.alternar', $correccion) }}', 'RESUELTO', true)"
+                                            :disabled="cargando === {{ $correccion->id }}"
+                                            class="px-3 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-50">
+                                            Registrar cumplimiento
+                                        </button>
+                                    @elseif (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']) && $correccion->estado === 'RESUELTO')
+                                        <button type="button" @click="cambiarEstado({{ $correccion->id }}, '{{ route('correcciones.alternar', $correccion) }}', 'APROBADO')"
+                                            :disabled="cargando === {{ $correccion->id }}"
+                                            class="px-3 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-50">
+                                            Aprobar respuesta
+                                        </button>
+                                        <button type="button" @click="cambiarEstado({{ $correccion->id }}, '{{ route('correcciones.alternar', $correccion) }}', 'PENDIENTE')"
+                                            :disabled="cargando === {{ $correccion->id }}"
+                                            class="px-3 py-1 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 transition-all hover:bg-amber-100 disabled:opacity-50">
+                                            Devolver a pendiente
+                                        </button>
+                                    @endif
+                                    @if (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']) && $correccion->estado === 'PENDIENTE' && (auth()->user()->esAdmin() || $correccion->usuario_autor_id === auth()->id()))
+                                        <a href="{{ route('correcciones.edit', $correccion) }}" class="text-[#006837] hover:underline">Editar</a>
                                     <form method="POST" action="{{ route('correcciones.destroy', $correccion) }}"
                                         onsubmit="return confirm('¿Eliminar esta observación?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
                                     </form>
-@endif
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -318,21 +364,32 @@
             Alpine.data('expediente', (datos) => ({
                 ...datos,
                 cargando: null,
+                estadoFiltro: 'TODOS',
 
                 resuelta(id) {
                     return ['RESUELTO', 'APROBADO'].includes(this.correcciones[id]);
                 },
 
-                async alternar(id, url) {
+                async cambiarEstado(id, url, estado, solicitarRespuesta = false) {
+                    let respuesta_estudiante;
+                    if (solicitarRespuesta) {
+                        respuesta_estudiante = prompt('Describe la respuesta o evidencia con la que cumpliste el compromiso:');
+                        if (respuesta_estudiante === null) return;
+                        if (!respuesta_estudiante.trim()) {
+                            alert('Debes describir la respuesta o evidencia antes de continuar.');
+                            return;
+                        }
+                    }
                     this.cargando = id;
                     try {
-                        const respuesta = await this.enviar(url);
+                        const respuesta = await this.enviar(url, { estado, respuesta_estudiante });
                         this.correcciones[id] = respuesta.estado;
+                        if (respuesta_estudiante !== undefined) this.respuestas[id] = respuesta_estudiante.trim();
                         this.porcentaje = respuesta.porcentaje;
                         this.resueltas = respuesta.resueltas;
                         this.total = respuesta.total;
                     } catch (e) {
-                        alert('No se pudo actualizar la observación. Intenta de nuevo.');
+                        alert(e.message || 'No se pudo actualizar la observación. Intenta de nuevo.');
                     }
                     this.cargando = null;
                 },
@@ -356,7 +413,10 @@
                         },
                         body: JSON.stringify(cuerpo),
                     });
-                    if (!r.ok) throw new Error(r.status);
+                    if (!r.ok) {
+                        const error = await r.json().catch(() => ({}));
+                        throw new Error(error.message || `No se pudo guardar el cambio (${r.status}).`);
+                    }
                     return r.json();
                 },
             }));

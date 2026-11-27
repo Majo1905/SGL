@@ -14,6 +14,23 @@
 @endif
 
 <div class="space-y-5">
+@if (!$proyecto->exists && $periodos->isEmpty())
+    <div role="alert" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        No hay períodos académicos activos. @if (auth()->user()->esAdmin())<a href="{{ route('periodos.index') }}" class="font-bold underline">Crea o activa un período</a>@else Contacta al administrador para habilitar la radicación.@endif
+    </div>
+@endif
+@if (!$proyecto->exists && $periodos->isNotEmpty())
+    <div>
+        <label for="periodo_academico_id" class="block text-sm font-semibold text-slate-700">Período académico</label>
+        <select name="periodo_academico_id" id="periodo_academico_id" class="{{ $campo }}" required>
+            <option value="">Selecciona un período activo</option>
+            @foreach ($periodos as $periodo)
+                <option value="{{ $periodo->id }}" @selected(old('periodo_academico_id') == $periodo->id)>{{ $periodo->nombre }}</option>
+            @endforeach
+        </select>
+    </div>
+@endif
+
     @if ($proyecto->exists)
         <div>
             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Código de radicado</label>
@@ -47,9 +64,11 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div>
-            <label for="fecha_radicacion" class="block text-sm font-semibold text-slate-700">Fecha de radicación</label>
-            <input type="date" name="fecha_radicacion" id="fecha_radicacion" class="{{ $campo }}"
-                value="{{ old('fecha_radicacion', optional($proyecto->fecha_radicacion)->format('Y-m-d') ?? now()->format('Y-m-d')) }}" required>
+            <label class="block text-sm font-semibold text-slate-700">Fecha de radicación</label>
+            <p class="mt-2 text-sm text-slate-600">
+                {{ $proyecto->exists ? $proyecto->fecha_radicacion->format('d/m/Y') : now()->format('d/m/Y') }}
+                @unless ($proyecto->exists)<span class="text-xs text-slate-400">(se asigna automáticamente al radicar)</span>@endunless
+            </p>
         </div>
 
         @if ($proyecto->exists)
@@ -68,7 +87,7 @@
 <div class="flex items-center justify-end gap-3 mt-8">
     <a href="{{ $proyecto->exists ? route('proyectos.show', $proyecto) : route('dashboard') }}"
         class="text-sm font-semibold text-slate-600 hover:text-slate-900 px-4 py-2">Cancelar</a>
-    <button type="submit" class="bg-[#006837] hover:bg-[#00522b] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all">
+    <button type="submit" @disabled(!$proyecto->exists && $periodos->isEmpty()) class="bg-[#006837] hover:bg-[#00522b] disabled:cursor-not-allowed disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all">
         {{ $proyecto->exists ? 'Guardar cambios' : 'Radicar proyecto' }}
     </button>
 </div>

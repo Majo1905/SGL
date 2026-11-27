@@ -4,6 +4,7 @@ use App\Http\Controllers\BuscarController;
 use App\Http\Controllers\CorreccionController;
 use App\Http\Controllers\InformeController;
 use App\Http\Controllers\IntegranteController;
+use App\Http\Controllers\PeriodoAcademicoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProyectoController;
 use App\Http\Controllers\UsuarioController;
@@ -13,7 +14,7 @@ Route::get('/', function () {
     return redirect('/login');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'cuenta.activa'])->group(function () {
     // el dashboard es el listado de proyectos
     Route::get('/dashboard', [ProyectoController::class, 'index'])->name('dashboard');
     Route::resource('proyectos', ProyectoController::class)->except('index');
@@ -40,6 +41,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // gestión de usuarios (solo administrador)
     Route::resource('usuarios', UsuarioController::class)->only(['index', 'create', 'store']);
+    Route::patch('/usuarios/{usuario}/estado', [UsuarioController::class, 'cambiarEstado'])->name('usuarios.estado');
+    Route::get('/periodos', [PeriodoAcademicoController::class, 'index'])->name('periodos.index');
+    Route::post('/periodos', [PeriodoAcademicoController::class, 'store'])->name('periodos.store');
+    Route::patch('/periodos/{periodo}', [PeriodoAcademicoController::class, 'update'])->name('periodos.update');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

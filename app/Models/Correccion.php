@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Correccion extends Model
 {
@@ -14,14 +15,21 @@ class Correccion extends Model
 
     protected $fillable = [
         'proyecto_id',
+        'usuario_autor_id',
         'descripcion_observacion',
         'fecha_limite',
         'estado',
+        'respuesta_estudiante',
+        'fecha_resolucion',
     ];
 
-    protected $casts = [
-        'fecha_limite' => 'date',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'fecha_limite' => 'date',
+            'fecha_resolucion' => 'datetime',
+        ];
+    }
 
     // positivo = faltan días, 0 = vence hoy, negativo = ya venció
     public function getDiasRestantesAttribute()
@@ -48,17 +56,22 @@ class Correccion extends Model
         $dias = $this->dias_restantes;
 
         if ($dias < 0) {
-            return 'Vencida hace ' . abs($dias) . ($dias == -1 ? ' día' : ' días');
+            return 'Vencida hace '.abs($dias).($dias == -1 ? ' día' : ' días');
         }
         if ($dias == 0) {
             return 'Vence hoy';
         }
 
-        return 'Faltan ' . $dias . ($dias == 1 ? ' día' : ' días');
+        return 'Faltan '.$dias.($dias == 1 ? ' día' : ' días');
     }
 
-    public function proyecto()
+    public function proyecto(): BelongsTo
     {
         return $this->belongsTo(Proyecto::class);
+    }
+
+    public function usuarioAutor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_autor_id');
     }
 }
