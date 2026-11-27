@@ -15,7 +15,7 @@ COPY . .
 RUN composer dump-autoload --no-dev --optimize --no-scripts
 
 # ---------- 3) Imagen final ----------
-FROM php:8.3-apache
+FROM php:8.4-apache
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libzip-dev libpq-dev libsqlite3-dev unzip \
     && docker-php-ext-install pdo_mysql pdo_pgsql pdo_sqlite zip bcmath opcache \
