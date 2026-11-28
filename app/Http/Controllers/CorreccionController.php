@@ -6,6 +6,7 @@ use App\Http\Requests\CorreccionRequest;
 use App\Models\Correccion;
 use App\Models\Proyecto;
 use App\Models\User;
+use App\Support\Avisos;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -15,8 +16,9 @@ class CorreccionController extends Controller implements HasMiddleware
 {
     public static function middleware(): array
     {
+        // CU-09 y CU-10: las observaciones las formulan el tutor y el jurado evaluador
         return [
-            new Middleware('rol:ADMIN,TUTOR,JURADO', only: ['store', 'edit', 'update', 'destroy']),
+            new Middleware('rol:TUTOR,JURADO', only: ['store', 'edit', 'update', 'destroy']),
         ];
     }
 
@@ -24,7 +26,7 @@ class CorreccionController extends Controller implements HasMiddleware
     {
         $this->autorizarEvaluador($proyecto, $request->user());
 
-        $proyecto->correcciones()->create([
+        $correccion = $proyecto->correcciones()->create([
             ...$request->validated(),
             'usuario_autor_id' => $request->user()->id,
         ]);
@@ -35,6 +37,14 @@ class CorreccionController extends Controller implements HasMiddleware
             $proyecto->update(['estado' => 'CON_OBSERVACIONES']);
             $mensaje .= ' El proyecto pasó a estado "Con observaciones".';
         }
+
+        Avisos::enviar(
+            $proyecto->usuariosConRol('AUTOR_ESTUDIANTE'),
+            'Nueva observación en tu proyecto',
+            "{$request->user()->name} registró una observación en {$proyecto->codigo_radicado} con fecha límite {$correccion->fecha_limite->format('d/m/Y')}.",
+            route('proyectos.show', $proyecto),
+            $request->user(),
+        );
 
         return redirect()->route('proyectos.show', $proyecto)->with('mensaje', $mensaje);
     }
@@ -58,6 +68,7 @@ class CorreccionController extends Controller implements HasMiddleware
             ->with('mensaje', 'Observación actualizada.');
     }
 
+    // CU-11: Pendiente -> Resuelto (estudiante) y Resuelto -> Aprobado / Pendiente (tutor o jurado)
     public function alternar(Request $request, Correccion $correccion)
     {
         $this->autorizarProyecto($correccion->proyecto);
@@ -77,6 +88,7 @@ class CorreccionController extends Controller implements HasMiddleware
         ]);
 
         $proyecto = $correccion->proyecto->load('correcciones');
+        $this->notificarCambio($correccion, $proyecto, $usuario);
 
         return response()->json([
             'estado' => $correccion->estado,
@@ -97,23 +109,33 @@ class CorreccionController extends Controller implements HasMiddleware
             ->with('mensaje', 'Observación eliminada.');
     }
 
+    // tutor asignado, o jurado asignado cuando el tutor ya validó el proyecto
+    private function esEvaluadorHabilitado(Proyecto $proyecto, User $usuario): bool
+    {
+        return $proyecto->esTutorAsignado($usuario)
+            || ($proyecto->esJuradoAsignado($usuario) && $proyecto->estaValidado());
+    }
     private function autorizarEvaluador(Proyecto $proyecto, User $usuario): void
     {
         $this->autorizarProyecto($proyecto);
 
-        $esEvaluadorAsignado = $proyecto->integrantes()
-            ->where('user_id', $usuario->id)
-            ->whereIn('rol_en_proyecto', ['DIRECTOR_TUTOR', 'JURADO_EVALUADOR'])
-            ->exists();
-
-        abort_unless($usuario->esAdmin() || $esEvaluadorAsignado, 403, 'Debes estar asignado como tutor o jurado para gestionar observaciones.');
+        abort_if(
+            $proyecto->esJuradoAsignado($usuario) && ! $proyecto->estaValidado(),
+            409,
+            'El tutor aún no ha validado el proyecto; todavía no puedes registrar observaciones.'
+        );
+        abort_unless(
+            $this->esEvaluadorHabilitado($proyecto, $usuario),
+            403,
+            'Debes estar asignado como tutor o jurado para gestionar observaciones.'
+        );
     }
 
     private function autorizarAutor(Correccion $correccion): void
     {
         $this->autorizarEvaluador($correccion->proyecto, auth()->user());
         abort_unless(
-            auth()->user()->esAdmin() || $correccion->usuario_autor_id === auth()->id(),
+            $correccion->usuario_autor_id === auth()->id(),
             403,
             'Solo quien registró la observación puede modificarla.'
         );
@@ -121,26 +143,40 @@ class CorreccionController extends Controller implements HasMiddleware
 
     private function validarTransicion(Correccion $correccion, User $usuario, string $estado, ?string $respuesta): void
     {
-        $esAutorProyecto = $correccion->proyecto->esAutor($usuario);
-        $esEvaluadorAsignado = $correccion->proyecto->integrantes()
-            ->where('user_id', $usuario->id)
-            ->whereIn('rol_en_proyecto', ['DIRECTOR_TUTOR', 'JURADO_EVALUADOR'])
-            ->exists();
+        $proyecto = $correccion->proyecto;
+        $esAutorProyecto = $usuario->esEstudiante() && $proyecto->esAutor($usuario);
 
         $permitida = $estado === 'RESUELTO'
             && $correccion->estado === 'PENDIENTE'
-            && ($usuario->esAdmin() || ($usuario->esEstudiante() && $esAutorProyecto))
+            && $esAutorProyecto
             && filled($respuesta);
 
         $permitida = $permitida || (
             in_array($estado, ['APROBADO', 'PENDIENTE'], true)
             && $correccion->estado === 'RESUELTO'
-            && ($usuario->esAdmin() || $esEvaluadorAsignado)
+            && $this->esEvaluadorHabilitado($proyecto, $usuario)
         );
 
         if ($estado === 'RESUELTO' && blank($respuesta)) {
             abort(422, 'Describe la respuesta o evidencia de cumplimiento antes de marcar la observación como resuelta.');
         }
         abort_unless($permitida, 422, 'La transición de estado no está permitida para tu rol o el estado actual.');
+    }
+
+    private function notificarCambio(Correccion $correccion, Proyecto $proyecto, User $usuario): void
+    {
+        $enlace = route('proyectos.show', $proyecto);
+
+        if ($correccion->estado === 'RESUELTO') {
+            // el estudiante respondió: se avisa a quien formuló la observación y al tutor
+            $destinatarios = collect([$correccion->usuarioAutor])
+                ->merge($proyecto->usuariosConRol('DIRECTOR_TUTOR'));
+            Avisos::enviar($destinatarios, 'Observación respondida', "{$usuario->name} respondió una observación de {$proyecto->codigo_radicado}.", $enlace, $usuario);
+
+            return;
+        }
+
+        $accion = $correccion->estado === 'APROBADO' ? 'aprobó tu respuesta a una observación' : 'devolvió una observación a pendiente';
+        Avisos::enviar($proyecto->usuariosConRol('AUTOR_ESTUDIANTE'), 'Seguimiento de observaciones', "{$usuario->name} {$accion} en {$proyecto->codigo_radicado}.", $enlace, $usuario);
     }
 }

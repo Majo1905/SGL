@@ -38,6 +38,14 @@
                                 <p class="text-xs font-medium text-white">{{ Auth::user()->name ?? 'Usuario' }}</p>
                             </div>
                             
+                            <!-- Campana de notificaciones (se actualiza sola cada 30 s) -->
+                            <div x-data="campana({{ Auth::user()->unreadNotifications()->count() }}, '{{ route('notificaciones.contador') }}')" x-init="iniciar()">
+                                <a href="{{ route('notificaciones.index') }}" class="relative inline-flex items-center rounded-lg border border-emerald-800 bg-[#00522b] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#004d26]" aria-label="Notificaciones">
+                                    Notificaciones
+                                    <span x-show="noLeidas > 0" x-cloak x-text="noLeidas" data-contador-notificaciones class="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white"></span>
+                                </a>
+                            </div>
+
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit" class="bg-[#00522b] hover:bg-red-700 text-white px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border border-emerald-800 shadow-sm">
@@ -61,6 +69,14 @@
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 w-full">
                     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium px-4 py-3 rounded-xl">
                         {{ session('mensaje') }}
+                    </div>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 w-full">
+                    <div role="alert" class="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+                        {{ session('error') }}
                     </div>
                 </div>
             @endif

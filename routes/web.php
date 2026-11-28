@@ -4,6 +4,7 @@ use App\Http\Controllers\BuscarController;
 use App\Http\Controllers\CorreccionController;
 use App\Http\Controllers\DocumentoProyectoController;
 use App\Http\Controllers\InformeController;
+use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\IntegranteController;
 use App\Http\Controllers\PeriodoAcademicoController;
 use App\Http\Controllers\ProfileController;
@@ -27,12 +28,19 @@ Route::middleware(['auth', 'verified', 'cuenta.activa'])->group(function () {
         ->shallow();
 
     Route::patch('/correcciones/{correccion}/alternar', [CorreccionController::class, 'alternar'])->name('correcciones.alternar');
+    Route::post('/proyectos/{proyecto}/validar', [ProyectoController::class, 'validarTutor'])->name('proyectos.validar');
     Route::patch('/proyectos/{proyecto}/estado', [ProyectoController::class, 'cambiarEstado'])->name('proyectos.estado');
     Route::post('/proyectos/{proyecto}/documentos', [DocumentoProyectoController::class, 'store'])->name('proyectos.documentos.store');
     Route::get('/documentos/{documento}/descargar', [DocumentoProyectoController::class, 'download'])->name('documentos.descargar');
 
     Route::post('/proyectos/{proyecto}/integrantes', [IntegranteController::class, 'store'])->name('integrantes.store');
     Route::delete('/integrantes/{integrante}', [IntegranteController::class, 'destroy'])->name('integrantes.destroy');
+
+    // notificaciones internas
+    Route::get('/notificaciones', [NotificacionController::class, 'index'])->name('notificaciones.index');
+    Route::get('/notificaciones/contador', [NotificacionController::class, 'contador'])->name('notificaciones.contador');
+    Route::post('/notificaciones/leer-todas', [NotificacionController::class, 'leerTodas'])->name('notificaciones.leer-todas');
+    Route::get('/notificaciones/{id}', [NotificacionController::class, 'abrir'])->name('notificaciones.abrir');
 
     // RF9 y RF10: búsquedas
     Route::get('/buscar', [BuscarController::class, 'index'])->name('buscar');

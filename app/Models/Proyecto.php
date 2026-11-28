@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Http\UploadedFile;
 
 class Proyecto extends Model
 {
@@ -22,11 +23,17 @@ class Proyecto extends Model
 
     protected $casts = [
         'fecha_radicacion' => 'date',
+        'validado_tutor_at' => 'datetime',
     ];
 
     public function usuarioCreador()
     {
         return $this->belongsTo(User::class, 'usuario_creador_id');
+    }
+
+    public function validadoPorTutor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validado_por_tutor_id');
     }
 
     public function periodoAcademico(): BelongsTo
@@ -111,5 +118,75 @@ class Proyecto extends Model
             ->max();
 
         return sprintf('PRJ-%d-%03d', $anio, ($ultimo ?? 0) + 1);
+    }
+
+    // ---------- roles dentro del proyecto ----------
+
+    public function tienePersonaConRol(User $usuario, string $rolEnProyecto): bool
+    {
+        return $this->integrantes()
+            ->where('user_id', $usuario->id)
+            ->where('rol_en_proyecto', $rolEnProyecto)
+            ->exists();
+    }
+
+    public function esTutorAsignado(User $usuario): bool
+    {
+        return $usuario->rol === 'TUTOR' && $this->tienePersonaConRol($usuario, 'DIRECTOR_TUTOR');
+    }
+
+    public function esJuradoAsignado(User $usuario): bool
+    {
+        return $usuario->rol === 'JURADO' && $this->tienePersonaConRol($usuario, 'JURADO_EVALUADOR');
+    }
+
+    // usuarios que participan con un rol (o varios) dentro del proyecto
+    public function usuariosConRol(string ...$roles)
+    {
+        return User::whereIn('id', $this->integrantes()->whereIn('rol_en_proyecto', $roles)->pluck('user_id'))->get();
+    }
+
+    // el proyecto solo llega a los jurados cuando el tutor lo valida
+    public function estaValidado(): bool
+    {
+        return $this->validado_tutor_at !== null;
+    }
+
+    public function estaCerrado(): bool
+    {
+        return in_array($this->estado, ['APROBADO', 'RECHAZADO'], true);
+    }
+
+    // el documento del proyecto lo consultan el admin, el autor, el tutor asignado y,
+    // una vez validado por el tutor, los jurados asignados
+    public function puedeConsultarDocumentos(User $usuario): bool
+    {
+        if ($usuario->esAdmin()) {
+            return true;
+        }
+        if ($usuario->esEstudiante()) {
+            return $this->esAutor($usuario);
+        }
+        if ($this->esTutorAsignado($usuario)) {
+            return true;
+        }
+
+        return $this->esJuradoAsignado($usuario) && $this->estaValidado();
+    }
+
+    // guarda el archivo en el disco privado y lo registra como entrega del proyecto
+    public function adjuntarDocumento(UploadedFile $archivo, User $usuario): ProjectDocument
+    {
+        $disco = config('filesystems.project_documents_disk');
+        $ruta = $archivo->store("proyectos/{$this->id}/documentos", $disco);
+
+        return $this->documentos()->create([
+            'user_id' => $usuario->id,
+            'original_name' => mb_substr($archivo->getClientOriginalName(), 0, 255),
+            'path' => $ruta,
+            'disk' => $disco,
+            'mime_type' => $archivo->getMimeType() ?: 'application/octet-stream',
+            'size' => $archivo->getSize(),
+        ]);
     }
 }

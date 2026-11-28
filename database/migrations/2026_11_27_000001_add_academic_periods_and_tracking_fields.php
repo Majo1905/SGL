@@ -30,9 +30,18 @@ return new class extends Migration
                 ->constrained('periodos_academicos')
                 ->nullOnDelete();
             $table->index(['fecha_radicacion', 'estado']);
-            $table->enum('estado', ['RADICADO', 'EN_REVISION', 'CON_OBSERVACIONES', 'APROBADO', 'RECHAZADO'])
-                ->default('RADICADO')
-                ->change();
+        });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement(
+                'ALTER TABLE proyectos DROP CONSTRAINT IF EXISTS proyectos_estado_check'
+            );
+        }
+
+        // Usar VARCHAR en lugar de ENUM para permitir los estados definidos
+        // por la aplicación sin generar una restricción CHECK incompatible.
+        Schema::table('proyectos', function (Blueprint $table) {
+            $table->string('estado')->default('RADICADO')->change();
         });
 
         Schema::table('correccions', function (Blueprint $table) {
@@ -68,9 +77,7 @@ return new class extends Migration
             $table->dropForeign(['periodo_academico_id']);
             $table->dropIndex(['fecha_radicacion', 'estado']);
             $table->dropColumn('periodo_academico_id');
-            $table->enum('estado', ['EN_REVISION', 'CON_OBSERVACIONES', 'APROBADO', 'RECHAZADO'])
-                ->default('EN_REVISION')
-                ->change();
+            $table->string('estado')->default('EN_REVISION')->change();
         });
 
         Schema::table('users', function (Blueprint $table) {

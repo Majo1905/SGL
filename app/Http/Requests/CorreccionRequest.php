@@ -14,7 +14,7 @@ class CorreccionRequest extends FormRequest
     {
         $reglaFecha = ['required', 'date'];
         if ($this->isMethod('post')) {
-            $reglaFecha[] = 'after_or_equal:today';
+            $reglaFecha[] = 'after:today';
         }
 
         return [
@@ -30,7 +30,7 @@ class CorreccionRequest extends FormRequest
             'descripcion_observacion.min' => 'La observación debe tener al menos :min caracteres.',
             'descripcion_observacion.max' => 'La observación no puede superar los :max caracteres.',
             'fecha_limite.date' => 'La fecha límite no es válida.',
-            'fecha_limite.after_or_equal' => 'La fecha límite no puede ser anterior a hoy.',
+            'fecha_limite.after' => 'La fecha límite debe ser posterior a la fecha actual.',
             'estado.in' => 'El estado seleccionado no es válido.',
         ];
     }

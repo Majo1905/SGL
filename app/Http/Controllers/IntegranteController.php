@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\IntegranteProyecto;
 use App\Models\Proyecto;
 use App\Models\User;
+use App\Support\Avisos;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -52,6 +53,14 @@ class IntegranteController extends Controller implements HasMiddleware
         }
 
         $proyecto->integrantes()->create($datos);
+
+        Avisos::enviar(
+            [$usuario],
+            'Te asignaron a un proyecto',
+            "Fuiste asignado como ".IntegranteProyecto::ROLES[$datos['rol_en_proyecto']]." en el proyecto {$proyecto->codigo_radicado}.",
+            route('proyectos.show', $proyecto),
+            $request->user(),
+        );
 
         return redirect()->route('proyectos.show', $proyecto)
             ->with('mensaje', 'Integrante agregado al proyecto.');

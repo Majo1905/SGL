@@ -17,7 +17,13 @@ class ProyectoRequest extends FormRequest
             $reglaPeriodo->where('estado', 'ACTIVO');
         }
 
+        // el estudiante debe subir su proyecto en un documento al radicarlo (el admin puede omitirlo)
+        $reglaDocumento = $this->isMethod('post')
+            ? [Rule::requiredIf($this->user()?->esEstudiante()), 'nullable', 'file', 'mimes:pdf,doc,docx', 'max:10240']
+            : ['prohibited'];
+
         return [
+            'documento' => $reglaDocumento,
             'titulo' => ['required', 'string', 'max:255'],
             'asunto_linea_investigacion' => ['required', 'string', 'max:255'],
             'resumen' => ['required', 'string', 'min:20', 'max:3000'],
@@ -38,12 +44,18 @@ class ProyectoRequest extends FormRequest
             'resumen.min' => 'El resumen debe tener al menos :min caracteres.',
             'date' => 'El campo :attribute no es una fecha válida.',
             'estado.in' => 'El estado seleccionado no es válido.',
+            'documento.required' => 'Debes subir tu proyecto en un documento (PDF, DOC o DOCX) para radicarlo.',
+            'documento.mimes' => 'El documento debe estar en formato PDF, DOC o DOCX.',
+            'documento.max' => 'El documento no puede superar los 10 MB.',
+            'documento.uploaded' => 'No se pudo cargar el documento. Verifica que no supere los 10 MB.',
+            'documento.prohibited' => 'Los documentos se cargan desde la ficha del proyecto.',
         ];
     }
 
     public function attributes()
     {
         return [
+            'documento' => 'documento',
             'titulo' => 'título',
             'asunto_linea_investigacion' => 'línea de investigación',
         ];

@@ -72,6 +72,8 @@ class DatabaseSeeder extends Seeder
             'fecha_radicacion' => '2026-02-10',
             'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante1->id,
+            'validado_por_tutor_id' => $tutor->id,
+            'validado_tutor_at' => now()->subDays(20),
         ]);
 
         $p2 = Proyecto::create([
@@ -83,6 +85,8 @@ class DatabaseSeeder extends Seeder
             'fecha_radicacion' => '2026-02-15',
             'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante2->id,
+            'validado_por_tutor_id' => $tutor->id,
+            'validado_tutor_at' => now()->subDays(25),
         ]);
 
         $p3 = Proyecto::create([
@@ -94,6 +98,8 @@ class DatabaseSeeder extends Seeder
             'fecha_radicacion' => '2026-02-20',
             'periodo_academico_id' => $periodo->id,
             'usuario_creador_id' => $estudiante1->id,
+            'validado_por_tutor_id' => $tutor->id,
+            'validado_tutor_at' => now()->subDays(15),
         ]);
 
         // 3. Integrantes de cada proyecto
@@ -118,6 +124,7 @@ class DatabaseSeeder extends Seeder
         // 4. Correcciones / compromisos
         Correccion::create([
             'proyecto_id' => $p1->id,
+            'usuario_autor_id' => $jurado->id,
             'descripcion_observacion' => 'Ajustar la justificación metodológica y detallar el tamaño de la muestra de datos recolectados en campo.',
             'fecha_limite' => '2026-03-15',
             'estado' => 'PENDIENTE',
@@ -125,6 +132,8 @@ class DatabaseSeeder extends Seeder
 
         Correccion::create([
             'proyecto_id' => $p1->id,
+            'usuario_autor_id' => $jurado->id,
+            'respuesta_estudiante' => 'Se agregó el diagrama en la sección 3.2 del documento.',
             'descripcion_observacion' => 'Incluir diagrama de arquitectura del modelo neuronal propuesto.',
             'fecha_limite' => '2026-03-20',
             'estado' => 'RESUELTO',
@@ -132,6 +141,7 @@ class DatabaseSeeder extends Seeder
 
         Correccion::create([
             'proyecto_id' => $p3->id,
+            'usuario_autor_id' => $tutor->id,
             'descripcion_observacion' => 'Validar las métricas de retardo (delay) frente a escenarios de pérdida de paquetes del 10%.',
             'fecha_limite' => '2026-04-01',
             'estado' => 'PENDIENTE',

@@ -8,6 +8,8 @@ use App\Models\PeriodoAcademico;
 use App\Models\Proyecto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AccesoPorRolTest extends TestCase
@@ -67,9 +69,11 @@ class AccesoPorRolTest extends TestCase
 
     public function test_estudiante_radica_proyecto_y_queda_como_autor(): void
     {
+        Storage::fake('local');
         $estudiante = User::factory()->create();
 
         $this->actingAs($estudiante)->post('/proyectos', [
+            'documento' => UploadedFile::fake()->create('mi-proyecto.pdf', 200, 'application/pdf'),
             'titulo' => 'Detección de plagas con visión por computador',
             'asunto_linea_investigacion' => 'Machine Learning',
             'resumen' => 'Modelo de clasificación de imágenes para cultivos de maíz.',

@@ -62,6 +62,17 @@
         <textarea name="resumen" id="resumen" rows="5" class="{{ $campo }}" required>{{ old('resumen', $proyecto->resumen) }}</textarea>
     </div>
 
+    @unless ($proyecto->exists)
+        <div>
+            <label for="documento" class="block text-sm font-semibold text-slate-700">
+                Documento del proyecto @if (auth()->user()->esEstudiante())<span class="text-red-600">*</span>@endif
+            </label>
+            <input type="file" name="documento" id="documento" accept=".pdf,.doc,.docx" @required(auth()->user()->esEstudiante())
+                class="mt-1 block w-full rounded-xl border border-slate-300 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:font-semibold file:text-[#006837]">
+            <p class="text-xs text-slate-400 mt-1">Sube tu proyecto en PDF, DOC o DOCX (máximo 10 MB). El tutor asignado lo revisará desde la ficha del proyecto.</p>
+        </div>
+    @endunless
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div>
             <label class="block text-sm font-semibold text-slate-700">Fecha de radicación</label>

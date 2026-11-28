@@ -32,7 +32,7 @@
             @if ($proyectos->isEmpty() && auth()->user()->esEstudiante())
                 <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
                     <h3 class="font-bold text-emerald-900">Empieza radicando tu proyecto</h3>
-                    <p class="mt-1 text-sm text-emerald-800">Después de radicarlo, abre su ficha y encontrarás la sección «Documentos del proyecto» para cargar el PDF, DOC o DOCX. El tutor asignado y el administrador podrán descargarlo desde allí.</p>
+                    <p class="mt-1 text-sm text-emerald-800">Al radicarlo debes subir tu proyecto en un documento (PDF, DOC o DOCX). El tutor asignado lo revisa desde la ficha del proyecto y, cuando lo valida, pasa a los jurados evaluadores.</p>
                     @if ($periodoActivo)
                         <a href="{{ route('proyectos.create') }}" class="mt-4 inline-flex rounded-xl bg-[#006837] px-4 py-2 text-sm font-semibold text-white hover:bg-[#00522b]">Radicar proyecto</a>
                     @else

@@ -30,6 +30,17 @@
         </div>
     </x-slot>
 
+    @php
+        $usuarioActual = auth()->user();
+        $esAutorActual = $usuarioActual->esEstudiante() && $proyecto->esAutor($usuarioActual);
+        $esTutorActual = $proyecto->esTutorAsignado($usuarioActual);
+        $esJuradoActual = $proyecto->esJuradoAsignado($usuarioActual);
+        $juradoHabilitado = $esJuradoActual && $proyecto->estaValidado();
+        $puedeEvaluar = $esTutorActual || $juradoHabilitado;          // registrar y aprobar observaciones
+        $puedeConcepto = $usuarioActual->esAdmin() || $juradoHabilitado; // concepto final del proyecto
+        $puedeVerDocumentos = $proyecto->puedeConsultarDocumentos($usuarioActual);
+    @endphp
+
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6"
             x-data="expediente({
@@ -63,7 +74,7 @@
                 </div>
 
                 <!-- Sugerencia cuando ya no queda nada pendiente -->
-                <div x-show="{{ in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']) ? 'true' : 'false' }} && estado === 'CON_OBSERVACIONES' && total > 0 && resueltas === total" x-cloak
+                <div x-show="{{ $puedeConcepto ? 'true' : 'false' }} && estado === 'CON_OBSERVACIONES' && total > 0 && resueltas === total" x-cloak
                     class="mt-4 flex flex-wrap items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                     <p class="text-sm text-emerald-800 font-medium">Todas las observaciones fueron resueltas. ¿Quieres aprobar el proyecto?</p>
                     <button type="button" @click="aprobar()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-all">
@@ -72,6 +83,43 @@
                 </div>
             </div>
             
+            <!-- Revisión: validación del tutor y concepto del jurado -->
+            <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-6" id="revision">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Revisión del proyecto</h3>
+
+                @if ($proyecto->estaValidado())
+                    <p class="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                        El tutor{{ $proyecto->validadoPorTutor ? ' '.$proyecto->validadoPorTutor->name : '' }} validó el proyecto el {{ $proyecto->validado_tutor_at->format('d/m/Y H:i') }} y lo envió a los jurados evaluadores.
+                    </p>
+                @else
+                    <p class="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                        Pendiente de validación del tutor. Mientras tanto los jurados no pueden consultar el documento ni registrar observaciones.
+                    </p>
+                @endif
+
+                @if ($esTutorActual && ! $proyecto->estaValidado() && ! $proyecto->estaCerrado())
+                    <form method="POST" action="{{ route('proyectos.validar', $proyecto) }}" class="mt-4 flex flex-wrap items-center gap-3"
+                        onsubmit="return confirm('¿Validar el proyecto y enviarlo a los jurados evaluadores?')">
+                        @csrf
+                        <button type="submit" class="bg-[#006837] hover:bg-[#00522b] text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-all">
+                            Validar y enviar a jurados
+                        </button>
+                        <span class="text-xs text-slate-500">Revisa primero el documento del estudiante y deja sin pendientes las observaciones que hayas registrado.</span>
+                    </form>
+                @endif
+
+                @if ($puedeConcepto && ($proyecto->estaValidado() || $usuarioActual->esAdmin()))
+                    <div class="mt-4 border-t border-slate-100 pt-4">
+                        <p class="text-xs font-bold uppercase text-slate-500 mb-2">Concepto del jurado evaluador</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="emitir('APROBADO')" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Aprobado</button>
+                            <button type="button" @click="emitir('CON_OBSERVACIONES')" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">Con observaciones</button>
+                            <button type="button" @click="emitir('RECHAZADO', true)" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-red-300 bg-red-50 text-red-700 hover:bg-red-100">Rechazado</button>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
             <!-- 1. Barra Visual de Progreso de Etapas Académicas -->
             <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-6">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Flujo de Aprobación Institucional</h3>
@@ -128,17 +176,17 @@
                 @endif
             </div>
 
-            @php
-                $usuarioActual = auth()->user();
-                $esAutorActual = $usuarioActual->esEstudiante() && $proyecto->esAutor($usuarioActual);
-                $esTutorActual = $usuarioActual->rol === 'TUTOR'
-                    && $proyecto->integrantes->contains(fn ($integrante) => $integrante->user_id === $usuarioActual->id && $integrante->rol_en_proyecto === 'DIRECTOR_TUTOR');
-            @endphp
-            @if ($usuarioActual->esAdmin() || $esAutorActual || $esTutorActual)
+            @if ($puedeVerDocumentos)
                 <section class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
                     <div class="mb-5">
                         <h3 class="text-xl font-bold text-slate-900">Documentos del proyecto</h3>
-                        <p class="mt-1 text-sm text-slate-500">Carga aquí tu anteproyecto o sus versiones. Tu tutor asignado y el administrador podrán consultarlo. Formatos PDF, DOC o DOCX; máximo 10 MB.</p>
+                        <p class="mt-1 text-sm text-slate-500">
+                            @if ($esAutorActual)
+                                Sube aquí tu proyecto en un documento (o una nueva versión). Tu tutor lo revisa y, cuando lo valida, pasa a los jurados. Formatos PDF, DOC o DOCX; máximo 10 MB.
+                            @else
+                                Documento del proyecto cargado por el estudiante para su revisión. Formatos PDF, DOC o DOCX.
+                            @endif
+                        </p>
                     </div>
 
                     @if (session('mensaje'))
@@ -148,7 +196,7 @@
                         <div role="alert" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first('documento') }}</div>
                     @endif
 
-                    @if ($esAutorActual)
+                    @if ($esAutorActual && ! $proyecto->estaCerrado())
                         <form method="POST" action="{{ route('proyectos.documentos.store', $proyecto) }}" enctype="multipart/form-data" class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
                             @csrf
                             <div class="flex-1">
@@ -171,7 +219,7 @@
                                 <a href="{{ route('documentos.descargar', $documento) }}" class="font-semibold text-[#006837] hover:underline">Descargar</a>
                             </li>
                         @empty
-                            <li class="py-3 text-sm text-slate-500">Todavía no hay documentos cargados.</li>
+                            <li class="py-3 text-sm text-slate-500">Todavía no hay documentos cargados@if ($esAutorActual). Sube tu proyecto para que el tutor pueda revisarlo@endif.</li>
                         @endforelse
                     </ul>
                 </section>
@@ -256,7 +304,7 @@
                                             class="px-3 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-50">
                                             Registrar cumplimiento
                                         </button>
-                                    @elseif (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']) && $correccion->estado === 'RESUELTO')
+                                    @elseif ($puedeEvaluar && $correccion->estado === 'RESUELTO')
                                         <button type="button" @click="cambiarEstado({{ $correccion->id }}, '{{ route('correcciones.alternar', $correccion) }}', 'APROBADO')"
                                             :disabled="cargando === {{ $correccion->id }}"
                                             class="px-3 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-50">
@@ -268,7 +316,7 @@
                                             Devolver a pendiente
                                         </button>
                                     @endif
-                                    @if (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']) && $correccion->estado === 'PENDIENTE' && (auth()->user()->esAdmin() || $correccion->usuario_autor_id === auth()->id()))
+                                    @if ($puedeEvaluar && $correccion->estado === 'PENDIENTE' && $correccion->usuario_autor_id === auth()->id())
                                         <a href="{{ route('correcciones.edit', $correccion) }}" class="text-[#006837] hover:underline">Editar</a>
                                     <form method="POST" action="{{ route('correcciones.destroy', $correccion) }}"
                                         onsubmit="return confirm('¿Eliminar esta observación?')">
@@ -374,7 +422,13 @@
                 </div>
 
                 <!-- Nueva observación -->
-                @if (in_array(auth()->user()->rol, ['ADMIN', 'TUTOR', 'JURADO']))
+                @if ($esJuradoActual && ! $proyecto->estaValidado())
+                <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-8">
+                    <h3 class="text-lg font-bold text-slate-900">Registrar observación</h3>
+                    <p class="mt-2 text-sm text-slate-500">Podrás registrar observaciones cuando el tutor valide el proyecto y lo envíe a los jurados.</p>
+                </div>
+                @endif
+                @if ($puedeEvaluar)
                 <div class="bg-white shadow-sm sm:rounded-2xl border border-slate-200 p-8">
                     <h3 class="text-lg font-bold text-slate-900">Registrar observación</h3>
                     <p class="text-xs text-slate-500 mt-0.5 mb-5">La observación aparecerá en la línea de tiempo del expediente.</p>
@@ -395,7 +449,7 @@
                         </div>
                         <div>
                             <label for="fecha_limite" class="block text-xs font-bold text-slate-500 uppercase">Fecha límite</label>
-                            <input type="date" name="fecha_limite" id="fecha_limite" min="{{ now()->format('Y-m-d') }}" class="{{ $campo }}" value="{{ old('fecha_limite') }}" required>
+                            <input type="date" name="fecha_limite" id="fecha_limite" min="{{ now()->addDay()->format('Y-m-d') }}" class="{{ $campo }}" value="{{ old('fecha_limite') }}" required>
                         </div>
                         <button type="submit" class="bg-[#006837] hover:bg-[#00522b] text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition-all">
                             Guardar observación
@@ -449,6 +503,16 @@
                         window.location.reload();
                     } catch (e) {
                         alert('No se pudo aprobar el proyecto.');
+                    }
+                },
+
+                async emitir(estado, confirmar = false) {
+                    if (confirmar && !confirm('¿Emitir el concepto «Rechazado» para este proyecto?')) return;
+                    try {
+                        await this.enviar(this.urlEstado, { estado });
+                        window.location.reload();
+                    } catch (e) {
+                        alert(e.message || 'No se pudo emitir el concepto.');
                     }
                 },
 

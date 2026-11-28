@@ -16,6 +16,10 @@ class ProyectoCrudTest extends TestCase
 
     private User $usuario;
 
+    private User $tutor;
+
+    private User $estudiante;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,6 +31,18 @@ class ProyectoCrudTest extends TestCase
         ]);
         // el CRUD completo es del administrador; los permisos por rol se prueban en AccesoPorRolTest
         $this->usuario = User::factory()->admin()->create();
+        $this->tutor = User::factory()->tutor()->create();
+        $this->estudiante = User::factory()->create();
+    }
+
+    // proyecto con estudiante autor y tutor asignado (las observaciones las gestiona el tutor, no el admin)
+    private function proyectoConTutor(array $extra = []): Proyecto
+    {
+        $proyecto = $this->crearProyecto($extra);
+        IntegranteProyecto::create(['proyecto_id' => $proyecto->id, 'user_id' => $this->estudiante->id, 'rol_en_proyecto' => 'AUTOR_ESTUDIANTE']);
+        IntegranteProyecto::create(['proyecto_id' => $proyecto->id, 'user_id' => $this->tutor->id, 'rol_en_proyecto' => 'DIRECTOR_TUTOR']);
+
+        return $proyecto;
     }
 
     private function crearProyecto(array $extra = []): Proyecto
@@ -180,9 +196,9 @@ class ProyectoCrudTest extends TestCase
 
     public function test_registrar_observacion(): void
     {
-        $proyecto = $this->crearProyecto();
+        $proyecto = $this->proyectoConTutor();
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->tutor)
             ->post(route('proyectos.correcciones.store', $proyecto), [
                 'descripcion_observacion' => 'Incluir el marco teórico completo',
                 'fecha_limite' => now()->addWeek()->format('Y-m-d'),
@@ -191,13 +207,14 @@ class ProyectoCrudTest extends TestCase
 
         $correccion = $proyecto->correcciones()->first();
         $this->assertSame('PENDIENTE', $correccion->fresh()->estado);
+        $this->assertSame($this->tutor->id, $correccion->usuario_autor_id);
     }
 
     public function test_observacion_nueva_no_acepta_fecha_pasada(): void
     {
-        $proyecto = $this->crearProyecto();
+        $proyecto = $this->proyectoConTutor();
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->tutor)
             ->post(route('proyectos.correcciones.store', $proyecto), [
                 'descripcion_observacion' => 'Incluir el marco teórico completo',
                 'fecha_limite' => '2020-01-01',
@@ -205,11 +222,25 @@ class ProyectoCrudTest extends TestCase
             ->assertSessionHasErrorsIn('correccion', 'fecha_limite');
     }
 
+    public function test_la_fecha_limite_debe_ser_posterior_a_hoy(): void
+    {
+        $proyecto = $this->proyectoConTutor();
+        $datos = ['descripcion_observacion' => 'Incluir el marco teórico completo'];
+
+        $this->actingAs($this->tutor)
+            ->post(route('proyectos.correcciones.store', $proyecto), $datos + ['fecha_limite' => today()->format('Y-m-d')])
+            ->assertSessionHasErrorsIn('correccion', 'fecha_limite');
+
+        $this->actingAs($this->tutor)
+            ->post(route('proyectos.correcciones.store', $proyecto), $datos + ['fecha_limite' => today()->addDay()->format('Y-m-d')])
+            ->assertSessionHasNoErrors();
+    }
+
     public function test_observacion_exige_descripcion(): void
     {
-        $proyecto = $this->crearProyecto();
+        $proyecto = $this->proyectoConTutor();
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->tutor)
             ->post(route('proyectos.correcciones.store', $proyecto), [
                 'descripcion_observacion' => '',
                 'fecha_limite' => now()->addWeek()->format('Y-m-d'),
@@ -221,16 +252,17 @@ class ProyectoCrudTest extends TestCase
 
     public function test_editar_y_resolver_observacion(): void
     {
-        $proyecto = $this->crearProyecto();
+        $proyecto = $this->proyectoConTutor();
         $correccion = Correccion::create([
             'proyecto_id' => $proyecto->id,
+            'usuario_autor_id' => $this->tutor->id,
             'descripcion_observacion' => 'Texto original de la observación',
             'fecha_limite' => '2026-03-15',
         ]);
 
-        $this->actingAs($this->usuario)->get(route('correcciones.edit', $correccion))->assertOk();
+        $this->actingAs($this->tutor)->get(route('correcciones.edit', $correccion))->assertOk();
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->tutor)
             ->put(route('correcciones.update', $correccion), [
                 'descripcion_observacion' => 'Texto corregido de la observación',
                 'fecha_limite' => '2026-03-15',
@@ -240,7 +272,7 @@ class ProyectoCrudTest extends TestCase
         $correccion->refresh();
         $this->assertSame('PENDIENTE', $correccion->estado);
         $this->assertSame('Texto corregido de la observación', $correccion->descripcion_observacion);
-        $this->actingAs($this->usuario)->patchJson(route('correcciones.alternar', $correccion), [
+        $this->actingAs($this->estudiante)->patchJson(route('correcciones.alternar', $correccion), [
             'estado' => 'RESUELTO',
             'respuesta_estudiante' => 'Se corrigió el apartado solicitado.',
         ])->assertOk();
@@ -248,14 +280,15 @@ class ProyectoCrudTest extends TestCase
 
     public function test_eliminar_observacion(): void
     {
-        $proyecto = $this->crearProyecto();
+        $proyecto = $this->proyectoConTutor();
         $correccion = Correccion::create([
             'proyecto_id' => $proyecto->id,
+            'usuario_autor_id' => $this->tutor->id,
             'descripcion_observacion' => 'Observación que se va a borrar',
             'fecha_limite' => '2026-03-15',
         ]);
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->tutor)
             ->delete(route('correcciones.destroy', $correccion))
             ->assertRedirect(route('proyectos.show', $proyecto));
 
@@ -329,19 +362,21 @@ class ProyectoCrudTest extends TestCase
 
     public function test_alternar_observacion_devuelve_el_avance_actualizado(): void
     {
-        $proyecto = $this->crearProyecto(['estado' => 'CON_OBSERVACIONES']);
+        $proyecto = $this->proyectoConTutor(['estado' => 'CON_OBSERVACIONES']);
         $primera = Correccion::create([
             'proyecto_id' => $proyecto->id,
+            'usuario_autor_id' => $this->tutor->id,
             'descripcion_observacion' => 'Primera observación',
             'fecha_limite' => '2026-03-15',
         ]);
         Correccion::create([
             'proyecto_id' => $proyecto->id,
+            'usuario_autor_id' => $this->tutor->id,
             'descripcion_observacion' => 'Segunda observación',
             'fecha_limite' => '2026-03-16',
         ]);
 
-        $this->actingAs($this->usuario)
+        $this->actingAs($this->estudiante)
             ->patchJson(route('correcciones.alternar', $primera), [
                 'estado' => 'RESUELTO',
                 'respuesta_estudiante' => 'Se completó la primera observación.',
@@ -349,8 +384,8 @@ class ProyectoCrudTest extends TestCase
             ->assertOk()
             ->assertJson(['estado' => 'RESUELTO', 'porcentaje' => 60, 'resueltas' => 1, 'total' => 2]);
 
-        // un segundo clic la vuelve a dejar pendiente
-        $this->actingAs($this->usuario)
+        // el tutor la devuelve a pendiente
+        $this->actingAs($this->tutor)
             ->patchJson(route('correcciones.alternar', $primera), [
                 'estado' => 'PENDIENTE',
             ])
@@ -360,9 +395,9 @@ class ProyectoCrudTest extends TestCase
 
     public function test_registrar_observacion_cambia_el_estado_del_proyecto(): void
     {
-        $proyecto = $this->crearProyecto(['estado' => 'EN_REVISION']);
+        $proyecto = $this->proyectoConTutor(['estado' => 'EN_REVISION']);
 
-        $this->actingAs($this->usuario)->post(route('proyectos.correcciones.store', $proyecto), [
+        $this->actingAs($this->tutor)->post(route('proyectos.correcciones.store', $proyecto), [
             'descripcion_observacion' => 'Falta el marco teórico',
             'fecha_limite' => now()->addWeek()->format('Y-m-d'),
         ]);

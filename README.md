@@ -4,8 +4,11 @@ Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se pued
 
 - **Proyectos:** radicar, ver, editar y eliminar (el código `PRJ-AAAA-NNN` se genera solo).
 - **Períodos académicos:** el administrador configura los períodos y define cuáles están activos; las radicaciones quedan vinculadas al período activo.
-- **Observaciones:** registrar y editar por su autor, responder con evidencia como estudiante y aprobar o devolver como tutor/jurado.
-- **Documentos:** el estudiante autor carga entregas PDF/DOC/DOCX de hasta 10 MB; el autor, el tutor asignado y el administrador pueden descargarlas. Se almacenan de forma privada.
+- **Observaciones:** las registran y editan solo el tutor y el jurado asignados (el administrador supervisa pero no observa); el estudiante responde con evidencia y el tutor/jurado aprueba o devuelve. La fecha límite debe ser posterior a hoy.
+- **Documentos:** el estudiante **debe subir su proyecto en un documento** (PDF/DOC/DOCX, máx. 10 MB) al radicarlo y puede cargar nuevas versiones desde la ficha mientras el proyecto no esté cerrado. Lo descargan el autor, el tutor asignado, el administrador y, una vez validado por el tutor, los jurados asignados. Se almacenan de forma privada.
+- **Revisión del tutor:** el tutor asignado revisa el documento, registra observaciones y, cuando no quedan pendientes, pulsa **Validar y enviar a jurados**. Hasta entonces los jurados no ven el documento ni pueden observar.
+- **Concepto del jurado:** el jurado asignado (tras la validación del tutor) emite el concepto *Aprobado*, *Con observaciones* o *Rechazado*. No se puede aprobar con observaciones pendientes.
+- **Notificaciones:** campana en el encabezado (se actualiza cada 30 s) y pantalla `/notificaciones`. Se avisa de: nuevo proyecto radicado (administradores), asignación a un proyecto, nuevo documento (tutor), validación del tutor, nuevas observaciones, respuestas, aprobaciones/devoluciones y concepto final.
 - **Integrantes:** agregar y quitar autores, directores y jurados.
 
 ### Roles y requisitos funcionales (RF1 a RF10)
@@ -13,14 +16,17 @@ Sistema de seguimiento de trabajos de grado. Después de iniciar sesión se pued
 | Rol | Qué puede hacer |
 |---|---|
 | Administrador | Todo: usuarios, proyectos, integrantes, observaciones, informes y búsquedas |
-| Tutor / Jurado | Ver sus proyectos, registrar y editar observaciones, aprobar, informe de pendientes, búsquedas |
-| Estudiante | Radicar y editar su proyecto (mientras no esté cerrado), resolver observaciones, búsquedas |
+| Tutor | Ver sus proyectos, descargar el documento, registrar/editar observaciones, aprobar respuestas, **validar y enviar a jurados**, informe de pendientes, búsquedas |
+| Jurado | Tras la validación del tutor: descargar el documento, registrar/editar observaciones, aprobar respuestas y **emitir el concepto**; informe de pendientes, búsquedas |
+| Estudiante | Radicar su proyecto **con su documento**, cargar versiones, editar (mientras no esté cerrado), responder observaciones, búsquedas |
 
 - **RF1:** ingreso, registro público (siempre como estudiante), recuperación de contraseña, perfil, documento de identidad único y cuentas activables/desactivables. El administrador registra usuarios en `/usuarios`.
 - **RF2–RF5:** ciclo de vida del proyecto, asignación de integrantes compatibles con su rol, visor central y trazabilidad de correcciones.
 - **RF6:** `/informes/rango` (solo administrador). **RF7:** `/informes/pendientes`. **RF8:** `/informes/usuario` (solo administrador).
 - **RF9 y RF10:** `/buscar` (código exacto y búsqueda parcial por título o línea).
 - Las observaciones tienen tres estados: Pendiente, Resuelto y Aprobado. Los estudiantes deben registrar una respuesta para resolverlas; un evaluador asignado puede aprobarlas o devolverlas.
+
+La migración `2026_11_28_000001` agrega la validación del tutor, la tabla `notifications` y la unicidad `(proyecto, usuario, rol)` de los integrantes.
 
 En una instalación existente ejecuta `php artisan migrate` para aplicar el esquema sin tocar los datos y luego crea el período en **Períodos** con una cuenta administradora. `php artisan migrate --seed` es solo para una base local vacía: carga los datos de demostración y un período inicial. Usuarios de demostración, todos con clave `12345678`: `admin@`, `tutor@`, `jurado@`, `estudiante1@` y `estudiante2@unicordoba.edu.co`.
 
@@ -30,6 +36,7 @@ El disco de documentos se selecciona con `PROJECT_DOCUMENTS_DISK` (por defecto `
 
 - **Barra de avance con porcentaje**, en el detalle y en cada fila del dashboard. El cálculo está en `Proyecto::getPorcentajeAvanceAttribute()`: en revisión o rechazado = 30 %; con observaciones = de 30 % a 90 % según las resueltas; aprobado = 100 %.
 - **Seguimiento de observaciones**: el estudiante registra evidencia de cumplimiento; tutor/jurado aprueba o devuelve el compromiso a pendiente. El filtro por estado no altera los indicadores del proyecto.
+- **Aprobación previa del tutor:** `proyectos.validar` registra quién validó y cuándo (`validado_por_tutor_id`, `validado_tutor_at`).
 - **Estado automático:** al registrar una observación, un proyecto "Radicado" o "En revisión" pasa a "Con observaciones".
 - **Semáforo de plazos** en cada observación (verde, amarillo si faltan 3 días o menos, rojo si venció) y panel de alertas en el dashboard.
 - **Búsqueda y filtro por estado en vivo** en el listado de proyectos.
@@ -42,7 +49,7 @@ cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite
 php artisan migrate --seed
-npm install && npm run build
+npm install && npm run build   # recompila los assets (incluye la campana de notificaciones)
 php artisan serve
 ```
 
